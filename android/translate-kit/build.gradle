@@ -1,0 +1,122 @@
+/*
+ * Copyright 2026 Marcos Holgado
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+plugins {
+    id 'com.android.library'
+    id 'org.jetbrains.kotlin.android'
+    id 'maven-publish'
+}
+
+def versionProps = new Properties()
+file("${rootDir}/version.properties").withInputStream { versionProps.load(it) }
+
+ext {
+    GROUP_ID = 'io.github.marcosholgado'
+    ARTIFACT_ID = 'translate-kit-android'
+    VERSION_NAME = versionProps.getProperty('VERSION_NAME')
+}
+
+android {
+    namespace 'io.github.marcosholgado.translatekit'
+    compileSdk 35
+    ndkVersion '28.2.13676358'
+
+    defaultConfig {
+        minSdk 26
+
+        externalNativeBuild {
+            cmake {
+                // Reproducible builds: normalise embedded paths.
+                arguments '-DCMAKE_BUILD_TYPE=Release'
+            }
+        }
+
+        ndk {
+            // arm64-v8a: real phones (ruy/NEON). x86_64: emulator/CI (intgemm/AVX2).
+            // armeabi-v7a deferred (32-bit NMT is memory-tight).
+            abiFilters 'arm64-v8a', 'x86_64'
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path 'CMakeLists.txt'
+            version '3.22.1'
+        }
+    }
+
+    // Shared bundled data (language-ID model, sentence-split prefixes) lives at
+    // the repo root so every platform wrapper can consume it.
+    sourceSets {
+        main {
+            assets.srcDirs += ['../../models']
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlin {
+        jvmToolchain(21)
+    }
+
+    publishing {
+        singleVariant('release') {
+            withSourcesJar()
+        }
+    }
+}
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+}
+
+afterEvaluate {
+    publishing {
+        publications {
+            release(MavenPublication) {
+                from components.release
+                groupId = GROUP_ID
+                artifactId = ARTIFACT_ID
+                version = VERSION_NAME
+
+                pom {
+                    name = 'translate-kit'
+                    description = 'On-device neural machine translation + offline language detection.'
+                    url = 'https://github.com/marcosholgado/translate-kit'
+                    licenses {
+                        license {
+                            name = 'The Apache License, Version 2.0'
+                            url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                        }
+                    }
+                }
+            }
+        }
+        repositories {
+            maven {
+                name = 'GitHubPackages'
+                url = 'https://maven.pkg.github.com/marcosholgado/translate-kit'
+                credentials {
+                    username = System.getenv('GITHUB_ACTOR') ?: (project.findProperty('gpr.user') ?: '')
+                    password = System.getenv('GITHUB_TOKEN') ?: (project.findProperty('gpr.key') ?: '')
+                }
+            }
+        }
+    }
+}
