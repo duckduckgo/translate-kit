@@ -33,6 +33,47 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
 
+# ---- CLD2: bundled, self-contained offline language detector ---------------
+# Apache-2.0. No external deps and no separate model file (language profiles are
+# compiled into the library). Source list mirrors the smaller `libcld2` variant
+# from third_party/cld2/internal/compile_libs.sh (~80 languages).
+set(CLD2_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/cld2)
+set(CLD2_INTERNAL ${CLD2_DIR}/internal)
+set(CLD2_SOURCES
+        ${CLD2_INTERNAL}/cldutil.cc
+        ${CLD2_INTERNAL}/cldutil_shared.cc
+        ${CLD2_INTERNAL}/compact_lang_det.cc
+        ${CLD2_INTERNAL}/compact_lang_det_hint_code.cc
+        ${CLD2_INTERNAL}/compact_lang_det_impl.cc
+        ${CLD2_INTERNAL}/debug.cc
+        ${CLD2_INTERNAL}/fixunicodevalue.cc
+        ${CLD2_INTERNAL}/generated_entities.cc
+        ${CLD2_INTERNAL}/generated_language.cc
+        ${CLD2_INTERNAL}/generated_ulscript.cc
+        ${CLD2_INTERNAL}/getonescriptspan.cc
+        ${CLD2_INTERNAL}/lang_script.cc
+        ${CLD2_INTERNAL}/offsetmap.cc
+        ${CLD2_INTERNAL}/scoreonescriptspan.cc
+        ${CLD2_INTERNAL}/tote.cc
+        ${CLD2_INTERNAL}/utf8statetable.cc
+        ${CLD2_INTERNAL}/cld_generated_cjk_uni_prop_80.cc
+        ${CLD2_INTERNAL}/cld2_generated_cjk_compatible.cc
+        ${CLD2_INTERNAL}/generated_distinct_bi_0.cc
+        ${CLD2_INTERNAL}/cld_generated_cjk_delta_bi_4.cc
+        ${CLD2_INTERNAL}/cld2_generated_quadchrome_2.cc
+        ${CLD2_INTERNAL}/cld2_generated_deltaoctachrome.cc
+        ${CLD2_INTERNAL}/cld2_generated_distinctoctachrome.cc
+        ${CLD2_INTERNAL}/cld_generated_score_quad_octa_2.cc)
+
+add_library(cld2 STATIC ${CLD2_SOURCES})
+target_include_directories(cld2 PUBLIC ${CLD2_DIR}/public ${CLD2_INTERNAL})
+# CLD2 is decade-old third-party code; silence its warnings so they don't drown
+# ours, and downgrade the braced-init narrowing that modern clang promotes to a
+# hard error. Keep it position-independent for linking into the shared object.
+target_compile_options(cld2 PRIVATE -w -Wno-c++11-narrowing -Wno-narrowing)
+set_target_properties(cld2 PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+# ---- translate-kit core ----------------------------------------------------
 add_library(translatekit_core STATIC
         src/c_api.cpp
         src/language_detector.cpp
@@ -42,6 +83,8 @@ add_library(translatekit_core STATIC
 target_include_directories(translatekit_core
         PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
         PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+target_link_libraries(translatekit_core PRIVATE cld2)
 
 # Position-independent so it can be linked into a shared object (the .so / JNI lib).
 set_target_properties(translatekit_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
