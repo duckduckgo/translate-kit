@@ -27,6 +27,18 @@ cmake_minimum_required(VERSION 3.18.1)
 project(translatekit_core LANGUAGES CXX)
 
 option(TRANSLATEKIT_BUILD_TESTS "Build the translate-kit core host unit tests" OFF)
+option(TRANSLATEKIT_WITH_ENGINE "Build and link the Bergamot translation engine" OFF)
+
+# Bergamot's marian-fork enables its ARM SIMD path (simde) only for marian's own
+# target, via the ARM/FMA/SSE compile definitions, and its headers also require
+# <fenv.h>. Any target that includes marian headers on ARM — our translator.cpp
+# and the bergamot wrapper target — needs the same, so apply it for ARM ABIs when
+# the engine is built. (Root-caused in the C.0 build spike.)
+if(TRANSLATEKIT_WITH_ENGINE AND (ANDROID_ABI STREQUAL "arm64-v8a"
+        OR CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64"))
+    add_compile_definitions(ARM FMA SSE)
+    add_compile_options(-include fenv.h)
+endif()
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -85,6 +97,37 @@ target_include_directories(translatekit_core
         PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 target_link_libraries(translatekit_core PRIVATE cld2)
+
+# ---- Bergamot translation engine -------------------------------------------
+# Vendored at third_party/translations/inference (mozilla/translations v0.6.0).
+# Off by default so the host unit tests build without the (large, slow) engine;
+# the Android build turns it ON. Requires the inference submodules checked out:
+#   git submodule update --init --recursive third_party/translations
+if(TRANSLATEKIT_WITH_ENGINE)
+    set(ENGINE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/translations/inference)
+    if(NOT EXISTS ${ENGINE_DIR}/CMakeLists.txt)
+        message(FATAL_ERROR
+            "TRANSLATEKIT_WITH_ENGINE=ON but the engine is missing at ${ENGINE_DIR}.\n"
+            "Run: git submodule update --init --recursive third_party/translations")
+    endif()
+
+    # Engine build knobs (established by the C.0 spike).
+    set(SSPLIT_USE_INTERNAL_PCRE2 ON CACHE BOOL "" FORCE)  # cross-build PCRE2 for the target
+    set(COMPILE_TESTS OFF CACHE BOOL "" FORCE)
+    set(COMPILE_UNIT_TESTS OFF CACHE BOOL "" FORCE)
+    # Never let marian auto-detect the host CPU when cross-compiling.
+    if(ANDROID_ABI STREQUAL "arm64-v8a")
+        set(BUILD_ARCH "armv8-a" CACHE STRING "" FORCE)
+    endif()
+
+    add_subdirectory(${ENGINE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/bergamot EXCLUDE_FROM_ALL)
+
+    target_link_libraries(translatekit_core PRIVATE bergamot-translator-source)
+    target_include_directories(translatekit_core PRIVATE
+            ${ENGINE_DIR}/src
+            ${ENGINE_DIR}/3rd_party/ssplit-cpp/src)
+    target_compile_definitions(translatekit_core PRIVATE TRANSLATEKIT_WITH_ENGINE=1)
+endif()
 
 # Position-independent so it can be linked into a shared object (the .so / JNI lib).
 set_target_properties(translatekit_core PROPERTIES POSITION_INDEPENDENT_CODE ON)

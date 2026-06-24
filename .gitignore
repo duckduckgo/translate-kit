@@ -24,6 +24,8 @@ models/test-models/
 .vscode/
 .DS_Store
 
-# CMake host build dir
+# CMake host / cross-compile build dirs
 cmake-build-*/
 core/build/
+build-*/
+**/build-*/

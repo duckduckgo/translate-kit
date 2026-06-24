@@ -22,22 +22,47 @@ Early development. Built in phases:
 |-------|-------|-------|
 | A | Repo scaffold, full public API, publishable AAR (stub native core) | done |
 | B | Offline language detection (CLD2, compiled-in) | done |
-| C | Bergamot NMT engine integration (HTML-aware translate) | planned |
+| C | Bergamot NMT engine integration (HTML-aware translate) | in progress (engine compiles for arm64-v8a) |
 | D | Golden tests, third-party license notices, first release | planned |
+
+## Requirements
+
+- **minSdk 28.** Forced by the Bergamot engine: marian's `pathie-cpp` uses `glob()`/`iconv()`, which
+  Android bionic only provides at API 28+. Consumers on a lower app minSdk gate the feature off below 28.
+- **NDK 28.2.13676358**, CMake 3.22+. Language detection (CLD2) alone has no such floor.
 
 ## Repository layout
 
 ```
-core/        platform-agnostic C++ engine + the C ABI (include/translate_kit/translate_kit.h)
+core/        platform-agnostic C++ engine wrapper + the C ABI (include/translate_kit/translate_kit.h)
 android/     Android Gradle project — the AAR wrapper (JNI shim + Kotlin facade)
 models/      bundled data (sentence-split prefixes) — fetched by scripts/ (Phase C)
-scripts/     cross-compile + model-fetch helpers
-third_party/ git submodules (CLD2 detector; Bergamot engine added in Phase C)
+scripts/     cross-compile + model-fetch + engine-patch helpers
+third_party/ git submodules: cld2 (detector), translations (Bergamot engine); patches/ (engine patches)
 ```
 
-The native engine lives in `core/` and is consumed by every platform wrapper through the C ABI in
-`core/include/translate_kit/translate_kit.h`. The Android module builds it via Gradle
+The translation engine wrapper lives in `core/` and is consumed by every platform wrapper through the
+C ABI in `core/include/translate_kit/translate_kit.h`. The Android module builds it via Gradle
 `externalNativeBuild` (CMake); other platforms use `scripts/build-*.sh`.
+
+## Building from source
+
+```bash
+# 1. Engine submodules (the inference subset is enough for the build):
+git submodule update --init --recursive third_party/cld2
+git submodule update --init third_party/translations
+git -C third_party/translations submodule update --init --recursive \
+    inference/3rd_party/ssplit-cpp \
+    inference/marian-fork/src/3rd_party/sentencepiece \
+    inference/marian-fork/src/3rd_party/ruy \
+    inference/marian-fork/src/3rd_party/simd_utils
+
+# 2. Apply translate-kit's local engine patches (see third_party/patches/):
+scripts/apply-engine-patches.sh
+
+# 3. Build the AAR (JDK 17/21):
+cd android && ./gradlew :translate-kit:assembleRelease
+```
 
 ## Android usage (Kotlin)
 

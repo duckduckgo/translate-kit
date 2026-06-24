@@ -1,0 +1,13 @@
+diff --git a/inference/marian-fork/src/CMakeLists.txt b/inference/marian-fork/src/CMakeLists.txt
+index b303d289..fec824f4 100644
+--- a/inference/marian-fork/src/CMakeLists.txt
++++ b/inference/marian-fork/src/CMakeLists.txt
+@@ -149,7 +149,7 @@ if(NOT IS_DIRECTORY ${MARIAN_GIT_DIR}) # i.e., it's a submodule
+   file(READ ${MARIAN_GIT_DIR} MARIAN_GIT_DIR)
+   string(REGEX REPLACE "gitdir: (.*)\n" "\\1" MARIAN_GIT_DIR ${MARIAN_GIT_DIR})
+   if(NOT IS_ABSOLUTE ${MARIAN_GIT_DIR})
+-    get_filename_component(MARIAN_GIT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../${MARIAN_GIT_DIR}" ABSOLUTE)
++    get_filename_component(MARIAN_GIT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../${MARIAN_GIT_DIR}" ABSOLUTE)
+   endif()
+ endif(NOT IS_DIRECTORY ${MARIAN_GIT_DIR})
+ 
