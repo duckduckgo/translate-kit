@@ -1,0 +1,29 @@
+# Build outputs
+build/
+.cxx/
+dist/
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+
+# Gradle
+.gradle/
+local.properties
+
+# Bundled model artifacts fetched by scripts (not committed — see scripts/fetch-models.sh)
+models/*.ftz
+models/*.bin
+models/*.spm
+models/test-models/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# CMake host build dir
+cmake-build-*/
+core/build/
