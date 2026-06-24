@@ -118,10 +118,11 @@ TK_EXPORT const char* tk_version(void);
  * none. The returned pointer is valid until the next tk_* call on this thread. */
 TK_EXPORT const char* tk_last_error(void);
 
-/* Initialize the engine and load the bundled language-ID model from
- * `langid_model_path`. Idempotent at the caller level (the Kotlin facade keeps
- * one context). On success writes a non-null handle to *out_ctx. Blocking. */
-TK_EXPORT tk_status tk_init(const char* langid_model_path, tk_context** out_ctx);
+/* Initialize the engine. The bundled language detector (CLD2) is self-contained
+ * — its profiles are compiled in, so no model file is needed. Idempotent at the
+ * caller level (the Kotlin facade keeps one context). On success writes a
+ * non-null handle to *out_ctx. Blocking. */
+TK_EXPORT tk_status tk_init(tk_context** out_ctx);
 
 /* Detect the language of `text` using the bundled model. Blocking. */
 TK_EXPORT tk_status tk_detect_language(tk_context* ctx,

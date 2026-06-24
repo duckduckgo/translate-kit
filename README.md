@@ -3,10 +3,13 @@
 On-device **neural machine translation** + **offline language detection** as a reusable native library.
 
 `translate-kit` wraps the [Bergamot](https://github.com/mozilla/translations) translation engine
-(a fork of Marian NMT with quantized int8 student models) and a bundled
-[fastText](https://fasttext.cc/) language-identification model, and exposes them through a thin,
+(a fork of Marian NMT with quantized int8 student models) and the bundled
+[CLD2](https://github.com/CLD2Owners/cld2) Compact Language Detector, and exposes them through a thin,
 platform-neutral C ABI. The first platform wrapper is **Android** (JNI → Kotlin, published as a Maven
 AAR); the C core is structured so iOS/macOS/Windows wrappers can reuse it later.
+
+CLD2 is self-contained — its language profiles are compiled into the library, so language detection
+needs no model file and no network.
 
 > **Privacy:** the library never touches the network. It does no model downloading and consumes only
 > on-disk model paths supplied by the caller. Everything stays on-device.
@@ -17,8 +20,8 @@ Early development. Built in phases:
 
 | Phase | Scope | State |
 |-------|-------|-------|
-| A | Repo scaffold, full public API, publishable AAR (stub native core) | in progress |
-| B | Offline language detection (fastText `lid.176.ftz`) | planned |
+| A | Repo scaffold, full public API, publishable AAR (stub native core) | done |
+| B | Offline language detection (CLD2, compiled-in) | done |
 | C | Bergamot NMT engine integration (HTML-aware translate) | planned |
 | D | Golden tests, third-party license notices, first release | planned |
 
@@ -27,9 +30,9 @@ Early development. Built in phases:
 ```
 core/        platform-agnostic C++ engine + the C ABI (include/translate_kit/translate_kit.h)
 android/     Android Gradle project — the AAR wrapper (JNI shim + Kotlin facade)
-models/      bundled data (language-ID model, sentence-split prefixes) — fetched by scripts/
+models/      bundled data (sentence-split prefixes) — fetched by scripts/ (Phase C)
 scripts/     cross-compile + model-fetch helpers
-third_party/ git submodules (Bergamot engine, fastText) — added in Phase C
+third_party/ git submodules (CLD2 detector; Bergamot engine added in Phase C)
 ```
 
 The native engine lives in `core/` and is consumed by every platform wrapper through the C ABI in
@@ -39,7 +42,7 @@ The native engine lives in `core/` and is consumed by every platform wrapper thr
 ## Android usage (Kotlin)
 
 ```kotlin
-TranslateKit.init(context)                 // loads .so + bundled language-ID model. Idempotent. Blocking.
+TranslateKit.init(context)                 // loads the native library + inits the engine. Idempotent. Blocking.
 
 val lang = TranslateKit.detectLanguage(text)            // LanguageResult(language, confidence)
 

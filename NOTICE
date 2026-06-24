@@ -16,7 +16,8 @@ specific language governing permissions and limitations under the License.
 
 This product bundles and/or links third-party components. Their licenses and
 attributions are listed in THIRD_PARTY_LICENSES.md. In particular it wraps the
-Bergamot translation engine (mozilla/translations, MPL-2.0) and the fastText
-language-identification model (MIT). These are not products of, and are not
-endorsed by, Mozilla. "Mozilla", "Firefox", and "Bergamot" are trademarks of
-their respective owners and are used here only to describe provenance.
+Bergamot translation engine (mozilla/translations, MPL-2.0) and the CLD2
+Compact Language Detector (CLD2Owners/cld2, Apache-2.0). These are not products
+of, and are not endorsed by, Mozilla or Google. "Mozilla", "Firefox", and
+"Bergamot" are trademarks of their respective owners and are used here only to
+describe provenance.

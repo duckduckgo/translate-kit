@@ -17,8 +17,6 @@
 package io.github.marcosholgado.translatekit
 
 import android.content.Context
-import java.io.File
-import java.io.FileNotFoundException
 
 /**
  * Entry point to translate-kit: on-device neural machine translation + offline
@@ -29,28 +27,25 @@ import java.io.FileNotFoundException
  * thread.
  *
  * The library never touches the network. Translation models are supplied by the
- * caller as on-disk paths ([loadModel]); the language-ID model is bundled.
+ * caller as on-disk paths ([loadModel]); the language detector is bundled and
+ * self-contained (no model file to load).
  */
 object TranslateKit {
 
     private const val LIBRARY_NAME = "translate-kit"
 
-    /** Bundled fastText language-ID model (packaged as an asset). */
-    private const val LANGID_ASSET = "lid.176.ftz"
-
     @Volatile
     private var nativeContextPtr: Long = 0L
 
     /**
-     * Loads the native library and the bundled language-ID model. Idempotent.
+     * Loads the native library and initializes the engine. Idempotent.
      * Blocking — call from an IO dispatcher.
      */
     @Synchronized
     fun init(context: Context) {
         if (nativeContextPtr != 0L) return
         System.loadLibrary(LIBRARY_NAME)
-        val langIdPath = extractLangIdModel(context)
-        val ptr = nativeInit(langIdPath)
+        val ptr = nativeInit()
         check(ptr != 0L) { "translate-kit init failed: ${nativeLastError()}" }
         nativeContextPtr = ptr
     }
@@ -93,27 +88,7 @@ object TranslateKit {
         model.close()
     }
 
-    /**
-     * Copies the bundled language-ID asset to a stable on-disk path the native
-     * engine can read. If the asset is not bundled yet (early phases), returns
-     * the intended path without failing.
-     */
-    private fun extractLangIdModel(context: Context): String {
-        val dir = File(context.filesDir, "translate-kit").apply { mkdirs() }
-        val dest = File(dir, LANGID_ASSET)
-        if (!dest.exists()) {
-            try {
-                context.assets.open(LANGID_ASSET).use { input ->
-                    dest.outputStream().use { output -> input.copyTo(output) }
-                }
-            } catch (_: FileNotFoundException) {
-                // Not bundled yet (Phase A). The native stub does not read the file.
-            }
-        }
-        return dest.absolutePath
-    }
-
-    private external fun nativeInit(langIdModelPath: String): Long
+    private external fun nativeInit(): Long
 
     private external fun nativeDetectLanguage(nativeContextPtr: Long, text: String): LanguageResult
 

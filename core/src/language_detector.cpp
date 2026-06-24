@@ -14,32 +14,42 @@
  * limitations under the License.
  */
 
-// PHASE A STUB. This compiles and links with no third-party dependencies so the
-// AAR/distribution path can be proven end-to-end before the real engine lands.
-// Phase B replaces the body with a fastText (lid.176.ftz) implementation while
-// keeping this header/signature unchanged.
-
 #include "language_detector.h"
+
+#include "compact_lang_det.h"  // CLD2::ExtDetectLanguageSummary, CLD2::Language
+#include "lang_script.h"       // CLD2::LanguageCode
 
 namespace translatekit {
 
-struct LanguageDetector::Impl {
-    std::string model_path;
-};
+DetectedLanguage LanguageDetector::detect(const std::string& text) const {
+    if (text.empty()) return DetectedLanguage{"und", 0.0f};
 
-LanguageDetector::LanguageDetector(const std::string& model_path)
-    : impl_(new Impl{model_path}) {
-    // Phase B: load the fastText model here and throw std::runtime_error if the
-    // file is missing/unreadable. The stub intentionally does not touch disk.
-}
+    bool is_reliable = false;
+    CLD2::Language top3[3] = {CLD2::UNKNOWN_LANGUAGE, CLD2::UNKNOWN_LANGUAGE,
+                              CLD2::UNKNOWN_LANGUAGE};
+    int percent3[3] = {0, 0, 0};
+    int text_bytes = 0;
 
-LanguageDetector::~LanguageDetector() {
-    delete impl_;
-}
+    const CLD2::Language language = CLD2::ExtDetectLanguageSummary(
+        text.data(), static_cast<int>(text.size()),
+        /*is_plain_text=*/true,
+        top3, percent3, &text_bytes, &is_reliable);
 
-DetectedLanguage LanguageDetector::detect(const std::string& /*text*/) const {
-    // Phase B: real fastText prediction. Stub returns a neutral default.
-    return DetectedLanguage{"en", 0.0f};
+    if (language == CLD2::UNKNOWN_LANGUAGE) {
+        return DetectedLanguage{"und", 0.0f};
+    }
+
+    const char* code = CLD2::LanguageCode(language);
+
+    // CLD2 reports the share of the text attributed to the top language plus a
+    // boolean reliability flag (rather than a probability). Map that to a [0,1]
+    // confidence: the byte share, halved when CLD2 deems the call unreliable.
+    float confidence = static_cast<float>(percent3[0]) / 100.0f;
+    if (!is_reliable) confidence *= 0.5f;
+    if (confidence < 0.0f) confidence = 0.0f;
+    if (confidence > 1.0f) confidence = 1.0f;
+
+    return DetectedLanguage{code != nullptr ? code : "und", confidence};
 }
 
 }  // namespace translatekit

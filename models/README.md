@@ -8,8 +8,10 @@ fetch runs.
 
 | File | Purpose | Source / License | Phase |
 |------|---------|------------------|-------|
-| `lid.176.ftz` | fastText compressed language-ID model (~917 KB) | fastText, MIT | B |
 | `nonbreaking_prefix.<lang>` | ssplit-cpp sentence-boundary rules | ssplit-cpp, MIT | C |
 
-> Translation **NMT** models are NOT bundled — they are downloaded on demand by the consuming app
-> (Spec 2) and passed to the library as on-disk paths.
+> **Language detection needs no bundled model.** It uses CLD2, whose language profiles are compiled
+> directly into the native library (Apache-2.0).
+>
+> Translation **NMT** models are NOT bundled either — they are downloaded on demand by the consuming
+> app (Spec 2) and passed to the library as on-disk paths.

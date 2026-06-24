@@ -50,7 +50,6 @@ char* dup_cstr(const std::string& s) {
 // Opaque handle definitions.
 struct tk_context {
     translatekit::LanguageDetector detector;
-    explicit tk_context(const std::string& langid_path) : detector(langid_path) {}
 };
 
 struct tk_model {
@@ -64,19 +63,15 @@ const char* tk_version(void) { return "0.1.0"; }
 
 const char* tk_last_error(void) { return g_last_error.c_str(); }
 
-tk_status tk_init(const char* langid_model_path, tk_context** out_ctx) {
+tk_status tk_init(tk_context** out_ctx) {
     clear_error();
     if (out_ctx == nullptr) {
         set_error("tk_init: out_ctx is null");
         return TK_ERR_INVALID_ARG;
     }
     *out_ctx = nullptr;
-    if (langid_model_path == nullptr || langid_model_path[0] == '\0') {
-        set_error("tk_init: langid_model_path is null/empty");
-        return TK_ERR_INVALID_ARG;
-    }
     try {
-        *out_ctx = new tk_context(std::string(langid_model_path));
+        *out_ctx = new tk_context();
         return TK_OK;
     } catch (const std::exception& e) {
         set_error(e.what());

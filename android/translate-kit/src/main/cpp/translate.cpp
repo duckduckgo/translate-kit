@@ -49,10 +49,9 @@ extern "C" {
 
 JNIEXPORT jlong JNICALL
 Java_io_github_marcosholgado_translatekit_TranslateKit_nativeInit(
-        JNIEnv* env, jobject, jstring langid_model_path) {
-    const std::string path = ToString(env, langid_model_path);
+        JNIEnv*, jobject) {
     tk_context* ctx = nullptr;
-    if (tk_init(path.c_str(), &ctx) != TK_OK) return 0;
+    if (tk_init(&ctx) != TK_OK) return 0;
     return reinterpret_cast<jlong>(ctx);
 }
 

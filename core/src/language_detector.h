@@ -22,23 +22,18 @@
 namespace translatekit {
 
 struct DetectedLanguage {
-    std::string language;  // BCP-47-ish, e.g. "en"
-    float confidence = 0.0f;
+    std::string language;  // ISO-639-1 / BCP-47-ish, e.g. "en"; "und" if unknown
+    float confidence = 0.0f;  // [0, 1]
 };
 
-// Offline language identification, backed by a bundled fastText model
-// (lid.176.ftz). Phase A is a stub; Phase B loads the real model.
+// Offline language identification backed by the bundled CLD2 detector
+// (Apache-2.0). CLD2 is self-contained: its language profiles are compiled into
+// the library, so there is no model file to load and detection is stateless.
 class LanguageDetector {
 public:
-    // Loads the model at `model_path`. Throws std::runtime_error on failure.
-    explicit LanguageDetector(const std::string& model_path);
-    ~LanguageDetector();
+    LanguageDetector() = default;
 
     DetectedLanguage detect(const std::string& text) const;
-
-private:
-    struct Impl;
-    Impl* impl_;
 };
 
 }  // namespace translatekit
