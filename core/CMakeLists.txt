@@ -125,6 +125,8 @@ if(TRANSLATEKIT_WITH_ENGINE)
     target_link_libraries(translatekit_core PRIVATE bergamot-translator-source)
     target_include_directories(translatekit_core PRIVATE
             ${ENGINE_DIR}/src
+            ${ENGINE_DIR}/marian-fork/src
+            ${ENGINE_DIR}/marian-fork/src/3rd_party
             ${ENGINE_DIR}/3rd_party/ssplit-cpp/src)
     target_compile_definitions(translatekit_core PRIVATE TRANSLATEKIT_WITH_ENGINE=1)
 endif()

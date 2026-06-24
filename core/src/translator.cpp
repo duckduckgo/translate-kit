@@ -14,12 +14,122 @@
  * limitations under the License.
  */
 
-// PHASE A STUB. Echoes the input so the JNI/AAR path is verifiable without the
-// Bergamot engine. Phase C replaces the body with a real BlockingService +
-// TranslationModel + ResponseOptions{ html = true } implementation, keeping
-// this header/signature unchanged.
-
 #include "translator.h"
+
+#ifdef TRANSLATEKIT_WITH_ENGINE
+
+// Engine-backed implementation: wraps the Bergamot inference engine. Each
+// Translator owns a BlockingService and one loaded TranslationModel; the
+// service is the recommended blocking path (the caller drives it from a single
+// IO thread). HTML-aware translation uses ResponseOptions{ HTML = true }, which
+// performs detag-and-project so inline tags ride along on the alignment.
+
+#include <sstream>
+#include <stdexcept>
+
+#include "common/options.h"
+#include "translator/parser.h"
+#include "translator/response.h"
+#include "translator/response_options.h"
+#include "translator/service.h"
+#include "translator/translation_model.h"
+
+namespace translatekit {
+namespace {
+
+namespace mb = marian::bergamot;
+
+// Minimal Bergamot student-model config used when the caller does not supply a
+// pre-generated config. Architecture params (e.g. gemm-precision) are normally
+// produced off-device from the model's metadata (SPEC-1 §10a); these are the
+// common `tiny`/`base` student defaults. The model/vocab/shortlist paths are set
+// explicitly from the ModelSpec below regardless of this base.
+std::string BaseConfigYaml() {
+    return
+        "beam-size: 1\n"
+        "normalize: 1.0\n"
+        "word-penalty: 0\n"
+        "max-length-break: 128\n"
+        "mini-batch-words: 1024\n"
+        "workspace: 128\n"
+        "max-length-factor: 2.0\n"
+        "skip-cost: true\n"
+        "cpu-threads: 0\n"
+        "quiet: true\n"
+        "quiet-translation: true\n"
+        "gemm-precision: int8shiftAlphaAll\n"
+        "alignment: soft\n";
+}
+
+std::shared_ptr<marian::Options> BuildOptions(const ModelSpec& spec) {
+    // Start from the supplied config if any (it carries the architecture
+    // params), else the student defaults. Then force the model/vocab/shortlist
+    // paths to the caller's absolute paths so resolution never depends on the
+    // config file's location or relative entries.
+    std::shared_ptr<marian::Options> options =
+        spec.config_path.empty()
+            ? mb::parseOptionsFromString(BaseConfigYaml(), /*validate=*/false)
+            : mb::parseOptionsFromFilePath(spec.config_path, /*validate=*/false);
+
+    options->set("models", std::vector<std::string>{spec.model_path});
+
+    std::vector<std::string> vocabs = spec.vocab_paths;
+    if (vocabs.size() == 1) vocabs.push_back(vocabs[0]);  // shared src/tgt vocab
+    options->set("vocabs", vocabs);
+
+    // shortlist: [<lex file>, <check flag>]
+    options->set("shortlist", std::vector<std::string>{spec.shortlist_path, "false"});
+
+    return options;
+}
+
+mb::BlockingService::Config ServiceConfig() {
+    mb::BlockingService::Config config;
+    config.cacheSize = 0;  // no cross-request cache; the caller owns lifecycle
+    return config;
+}
+
+}  // namespace
+
+struct Translator::Impl {
+    mb::BlockingService service;
+    std::shared_ptr<mb::TranslationModel> model;
+
+    explicit Impl(const ModelSpec& spec)
+        : service(ServiceConfig()),
+          model(std::make_shared<mb::TranslationModel>(
+              BuildOptions(spec),
+              static_cast<size_t>(spec.num_workers > 0 ? spec.num_workers : 1))) {}
+};
+
+Translator::Translator(const ModelSpec& spec) : impl_(new Impl(spec)) {}
+
+Translator::~Translator() {
+    delete impl_;
+}
+
+TranslationResult Translator::translate(const std::string& input, bool is_html) const {
+    mb::ResponseOptions options;
+    options.HTML = is_html;
+
+    std::vector<std::string> sources{input};
+    std::vector<mb::ResponseOptions> perInput{options};
+    std::vector<mb::Response> responses =
+        impl_->service.translateMultiple(impl_->model, std::move(sources), perInput);
+
+    TranslationResult result;
+    if (!responses.empty()) {
+        result.text = responses.front().target.text;
+    }
+    return result;
+}
+
+}  // namespace translatekit
+
+#else  // TRANSLATEKIT_WITH_ENGINE
+
+// Stub implementation (host builds / engine disabled): echoes the input so the
+// JNI/AAR/distribution path is exercisable without the engine.
 
 namespace translatekit {
 
@@ -27,23 +137,18 @@ struct Translator::Impl {
     ModelSpec spec;
 };
 
-Translator::Translator(const ModelSpec& spec) : impl_(new Impl{spec}) {
-    // Phase C: open/mmap the model, vocab and shortlist files, build the
-    // bergamot config, and throw std::runtime_error on missing files or engine
-    // rejection. The stub intentionally does not touch disk so the echo path
-    // works without real model artifacts.
-}
+Translator::Translator(const ModelSpec& spec) : impl_(new Impl{spec}) {}
 
 Translator::~Translator() {
     delete impl_;
 }
 
-TranslationResult Translator::translate(const std::string& input,
-                                        bool /*is_html*/) const {
-    // Phase C: real translation. Stub echoes input verbatim.
+TranslationResult Translator::translate(const std::string& input, bool /*is_html*/) const {
     TranslationResult result;
-    result.text = input;
+    result.text = input;  // echo
     return result;
 }
 
 }  // namespace translatekit
+
+#endif  // TRANSLATEKIT_WITH_ENGINE
