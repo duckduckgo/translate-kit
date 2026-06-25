@@ -21,6 +21,7 @@
 
 #include <cstdlib>
 #include <string>
+#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -161,14 +162,61 @@ TEST(CApi, TranslateRealModelEnDe) {
     EXPECT_NE(out.find("Hallo"), std::string::npos) << "plain output: " << out;
     tk_translation_result_free(&r);
 
-    // (b) HTML fragment: inline tag must round-trip (detag-and-project)
-    tk_translation_result h = {};
-    ASSERT_EQ(tk_translate(m, "<b>Hello World!</b>", /*is_html=*/1, &h), TK_OK) << tk_last_error();
-    ASSERT_NE(h.text, nullptr);
-    const std::string html(h.text);
-    EXPECT_NE(html.find("<b>"), std::string::npos) << "html output: " << html;
-    EXPECT_NE(html.find("</b>"), std::string::npos) << "html output: " << html;
-    tk_translation_result_free(&h);
+    // (b) HTML fragments: tags/attributes round-trip (detag-and-project). These
+    // mirror TranslateKitInstrumentedTest.HTML_CASES so the host and on-device
+    // goldens stay in lock-step. Tag/attribute substrings are structural
+    // invariants (projected via alignment, not generated); the German tokens are
+    // the stable greedy (beam-size 1) outputs.
+    struct HtmlCase {
+        const char* input;
+        std::vector<const char*> must_contain;  // checked when `exact` is null
+        const char* exact;                      // exact match when non-null
+    };
+    const std::vector<HtmlCase> html_cases = {
+        // Canonical inline tag.
+        {"<b>Hello World!</b>", {}, "<b>Hallo Welt!</b>"},
+        // Attribute (href) preserved verbatim; content translated.
+        {"<a href=\"https://example.com\">Hello World!</a>",
+         {"<a href=\"https://example.com\">", "</a>", "Hallo Welt!"}, nullptr},
+        // Tag repositioned across sentence reordering.
+        {"Click <a href=\"https://example.com\">here</a> to continue.",
+         {"<a href=\"https://example.com\">", "</a>", "hier", "Klicken"}, nullptr},
+        // Nested inline tags.
+        {"<b>Hello <i>beautiful</i> World!</b>",
+         {"<b>", "<i>", "</i>", "</b>", "Welt"}, nullptr},
+        // Sibling inline tags.
+        {"<b>Hello</b> <i>World</i>!", {"<b>Hallo</b>", "<i>Welt</i>"}, nullptr},
+        // Void element preserved and repositioned.
+        {"Hello<br>World", {"<br>", "Hallo", "Welt"}, nullptr},
+        // Block elements translate independently; structure intact.
+        {"<p>Hello World!</p><p>Good morning!</p>",
+         {"<p>Hallo Welt!</p>", "<p>Guten Morgen!</p>"}, nullptr},
+        // Multiple attributes preserved verbatim.
+        {"<span class=\"greeting\" data-id=\"42\">Hello World!</span>",
+         {"<span class=\"greeting\" data-id=\"42\">", "</span>", "Hallo Welt!"}, nullptr},
+        // HTML entity survives.
+        {"Hello &amp; goodbye", {"&amp;", "Hallo"}, nullptr},
+        // Full combo: block + repositioned link + complex href (query + entity).
+        {"<p>Please <a href=\"https://example.com/path?q=1&amp;x=2\">click here</a> now.</p>",
+         {"<p>", "<a href=\"https://example.com/path?q=1&amp;x=2\">", "</a>", "</p>"}, nullptr},
+    };
+    for (const HtmlCase& c : html_cases) {
+        tk_translation_result h = {};
+        ASSERT_EQ(tk_translate(m, c.input, /*is_html=*/1, &h), TK_OK)
+            << "input: " << c.input << " err: " << tk_last_error();
+        ASSERT_NE(h.text, nullptr) << "input: " << c.input;
+        const std::string html(h.text);
+        if (c.exact != nullptr) {
+            EXPECT_EQ(html, c.exact) << "input: " << c.input;
+        } else {
+            for (const char* needle : c.must_contain) {
+                EXPECT_NE(html.find(needle), std::string::npos)
+                    << "input: " << c.input << "\n  output: " << html
+                    << "\n  missing: " << needle;
+            }
+        }
+        tk_translation_result_free(&h);
+    }
 
     tk_model_close(m);
     tk_shutdown(ctx);

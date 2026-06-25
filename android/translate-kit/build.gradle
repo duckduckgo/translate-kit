@@ -39,6 +39,8 @@ android {
         // glob()/iconv(), which Android bionic only provides at API 28+.
         minSdk 28
 
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+
         externalNativeBuild {
             cmake {
                 // Build only our JNI library (not the bergamot CLI/tests).
@@ -90,6 +92,11 @@ android {
 
 dependencies {
     testImplementation 'junit:junit:4.13.2'
+
+    // Instrumented tests: exercise the real JNI + .so engine path on a device.
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+    androidTestImplementation 'androidx.test:runner:1.6.2'
+    androidTestImplementation 'androidx.test:core:1.6.1'
 }
 
 afterEvaluate {
