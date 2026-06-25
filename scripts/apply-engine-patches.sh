@@ -9,23 +9,36 @@
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Applies translate-kit's local patches to the vendored Bergamot engine
-# submodule (third_party/translations). Run once after checking out the engine
-# submodules:
+# (third_party/translations). Run once after checking out the engine submodules:
 #
 #   git submodule update --init --recursive third_party/translations
 #   scripts/apply-engine-patches.sh
 #
-# Idempotent: patches already applied are skipped. The patches are NOT committed
-# into the submodule (we can't — it's upstream); they live in third_party/patches
-# and are re-applied to the working tree by this script.
+# Idempotent: patches already present are skipped. The patches are NOT committed
+# into the submodule (it is upstream); they live in third_party/patches and are
+# re-applied to the working tree by this script. `patch` (not `git apply`) is
+# used so patches that touch nested submodules (e.g. sentencepiece) apply the
+# same way as ones touching regular files.
 #
-# Current patches:
-#   0001-marian-git-revision-submodule-path.patch
-#     marian's git_revision.h generation resolves the submodule .git path
-#     assuming marian-fork is the direct submodule. Here it is nested two levels
-#     inside the `translations` submodule, so the relative gitdir must be
-#     resolved against the .git file's own directory. Without this, ninja fails:
-#     "logs/HEAD ... missing and no known rule to make it".
+# Patches (all paths relative to third_party/translations):
+#   0001-marian-git-revision-submodule-path
+#     Fix marian's git_revision.h .git-dir resolution when marian-fork is nested
+#     inside a submodule (else ninja fails: "logs/HEAD ... no known rule").
+#   0002-marian-drop-werror
+#     Drop -Werror from marian's warning set. Modern compilers (e.g. AppleClang)
+#     flag warnings the engine's pinned toolchains did not; vendored third-party
+#     warnings should not hard-fail our build. Needed for the Apple/native target.
+#   0003-sentencepiece-constexpr-const
+#     sentencepiece trainer code casts -1 to an enum in a constexpr; newer clang
+#     rejects it as non-constant. Use const. (Trainer code is unused by inference.)
+#   0004-zlib-classic-mac-fdopen
+#     zlib's vendored zutil.h takes its CLASSIC Mac OS branch on any Apple target
+#     (TARGET_OS_MAC) and #defines fdopen() to NULL, clobbering the modern macOS
+#     SDK declaration. Skip that branch when __APPLE__ (modern macOS has fdopen).
+#
+# Patches 0002-0004 are needed to build the engine on modern compilers / macOS
+# (the Apple target); the Android NDK build needs only 0001 but the rest are
+# harmless there.
 
 set -euo pipefail
 
@@ -41,15 +54,17 @@ fi
 
 shopt -s nullglob
 for patch in "$PATCH_DIR"/*.patch; do
-    name="$(basename "$patch")"
-    if git -C "$ENGINE_DIR" apply --reverse --check "$patch" >/dev/null 2>&1; then
+    name="$(basename "$patch" .patch)"
+    dry="$(patch -p1 -d "$ENGINE_DIR" --forward --dry-run < "$patch" 2>&1 || true)"
+    if printf '%s' "$dry" | grep -qiE "previously applied|Reversed"; then
         echo "already applied: $name"
-    elif git -C "$ENGINE_DIR" apply --check "$patch" >/dev/null 2>&1; then
-        git -C "$ENGINE_DIR" apply "$patch"
-        echo "applied: $name"
-    else
+    elif printf '%s' "$dry" | grep -qiE "FAILED|can't find file|No file to patch"; then
         echo "error: cannot apply $name cleanly (engine version drift?)" >&2
+        printf '%s\n' "$dry" >&2
         exit 1
+    else
+        patch -p1 -d "$ENGINE_DIR" --forward < "$patch" >/dev/null
+        echo "applied: $name"
     fi
 done
 
