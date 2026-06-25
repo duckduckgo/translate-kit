@@ -60,8 +60,21 @@ function(translatekit_add_engine engine_dir)
     # Pin the target CPU so marian never probes the build host (wrong when
     # cross-compiling, e.g. for Android). On a native build the engine's own
     # detection is correct, so we leave BUILD_ARCH alone.
-    if(TRANSLATEKIT_ARCH_ARM AND ANDROID)
-        set(BUILD_ARCH "armv8-a" CACHE STRING "" FORCE)
+    if(ANDROID)
+        if(TRANSLATEKIT_ARCH_ARM)
+            # Real phones: marian's ruy/NEON int8 path.
+            set(BUILD_ARCH "armv8-a" CACHE STRING "" FORCE)
+        else()
+            # x86_64 emulator/CI: marian's intgemm path. Pin x86-64-v2 (SSE3/SSSE3/
+            # SSE4.2, no AVX) so marian compiles with a valid target -march (never
+            # the arm64 build host's "native") AND its own code never emits AVX
+            # instructions that SIGILL on an AVX2-less x86 emulator. We deliberately
+            # do NOT pin AVX2 here: intgemm runtime-dispatches its AVX2/SSSE3 int8
+            # kernels via CPUID independent of this -march, so the int8 hot path
+            # still uses AVX2 where the CPU has it — pinning v2 costs nothing there
+            # and buys emulator/CI robustness (the classic AVX-on-emulator SIGILL).
+            set(BUILD_ARCH "x86-64-v2" CACHE STRING "" FORCE)
+        endif()
     endif()
 
     add_subdirectory(${engine_dir} ${CMAKE_BINARY_DIR}/bergamot EXCLUDE_FROM_ALL)

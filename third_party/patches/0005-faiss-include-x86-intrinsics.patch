@@ -1,0 +1,16 @@
+diff --git a/inference/marian-fork/src/3rd_party/faiss/VectorTransform.cpp b/inference/marian-fork/src/3rd_party/faiss/VectorTransform.cpp
+index a26c2b4d..2cdaf231 100644
+--- a/inference/marian-fork/src/3rd_party/faiss/VectorTransform.cpp
++++ b/inference/marian-fork/src/3rd_party/faiss/VectorTransform.cpp
+@@ -144,6 +144,11 @@ float fvec_norm_L2sqr_ref(const float *x, size_t d)
+ 
+ 
+ #ifdef __SSE__
++// __m128 and the _mm_* intrinsics live here. On the usual x86 desktop build
++// this header arrives transitively (e.g. via MKL); the Android x86_64 NDK has
++// no MKL, so include it explicitly. Guarded by __SSE__ so ARM targets, which
++// never enter this block, are unaffected.
++#include <immintrin.h>
+ // reads 0 <= d < 4 floats as __m128
+ static inline __m128 masked_read(int d, const float *x)
+ {

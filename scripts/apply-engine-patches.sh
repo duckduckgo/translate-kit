@@ -35,10 +35,15 @@
 #     zlib's vendored zutil.h takes its CLASSIC Mac OS branch on any Apple target
 #     (TARGET_OS_MAC) and #defines fdopen() to NULL, clobbering the modern macOS
 #     SDK declaration. Skip that branch when __APPLE__ (modern macOS has fdopen).
+#   0005-faiss-include-x86-intrinsics
+#     faiss/VectorTransform.cpp uses __m128/_mm_* under #ifdef __SSE__ but never
+#     includes <immintrin.h>; on a normal x86 build it arrives transitively via
+#     MKL. The Android x86_64 NDK has no MKL, so include it explicitly. Needed
+#     for the x86_64 (emulator/CI) ABI.
 #
 # Patches 0002-0004 are needed to build the engine on modern compilers / macOS
-# (the Apple target); the Android NDK build needs only 0001 but the rest are
-# harmless there.
+# (the Apple target); 0005 is needed for the Android x86_64 ABI. The Android
+# arm64 NDK build needs only 0001 but the rest are harmless there.
 
 set -euo pipefail
 

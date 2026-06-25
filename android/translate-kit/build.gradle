@@ -50,9 +50,9 @@ android {
         }
 
         ndk {
-            // arm64-v8a: real phones (ruy/NEON). x86_64 (intgemm/AVX2) added in C.4.
+            // arm64-v8a: real phones (ruy/NEON). x86_64: emulator/CI (intgemm/AVX2).
             // armeabi-v7a deferred (32-bit NMT is memory-tight).
-            abiFilters 'arm64-v8a'
+            abiFilters 'arm64-v8a', 'x86_64'
         }
     }
 
