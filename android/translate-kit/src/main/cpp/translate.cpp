@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Marcos Holgado
+ * Copyright 2026 DuckDuckGo
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ extern "C" {
 /* ---- TranslateKit (object) --------------------------------------------- */
 
 JNIEXPORT jlong JNICALL
-Java_io_github_marcosholgado_translatekit_TranslateKit_nativeInit(
+Java_com_duckduckgo_translatekit_TranslateKit_nativeInit(
         JNIEnv*, jobject) {
     tk_context* ctx = nullptr;
     if (tk_init(&ctx) != TK_OK) return 0;
@@ -56,13 +56,13 @@ Java_io_github_marcosholgado_translatekit_TranslateKit_nativeInit(
 }
 
 JNIEXPORT jstring JNICALL
-Java_io_github_marcosholgado_translatekit_TranslateKit_nativeLastError(
+Java_com_duckduckgo_translatekit_TranslateKit_nativeLastError(
         JNIEnv* env, jobject) {
     return env->NewStringUTF(tk_last_error());
 }
 
 JNIEXPORT jobject JNICALL
-Java_io_github_marcosholgado_translatekit_TranslateKit_nativeDetectLanguage(
+Java_com_duckduckgo_translatekit_TranslateKit_nativeDetectLanguage(
         JNIEnv* env, jobject, jlong context_ptr, jstring text) {
     auto* ctx = reinterpret_cast<tk_context*>(context_ptr);
     const std::string in = ToString(env, text);
@@ -73,7 +73,7 @@ Java_io_github_marcosholgado_translatekit_TranslateKit_nativeDetectLanguage(
         return nullptr;
     }
 
-    jclass cls = env->FindClass("io/github/marcosholgado/translatekit/LanguageResult");
+    jclass cls = env->FindClass("com/duckduckgo/translatekit/LanguageResult");
     jmethodID ctor = env->GetMethodID(cls, "<init>", "(Ljava/lang/String;F)V");
     jstring language = env->NewStringUTF(result.language);
     jobject obj = env->NewObject(cls, ctor, language, static_cast<jfloat>(result.confidence));
@@ -83,7 +83,7 @@ Java_io_github_marcosholgado_translatekit_TranslateKit_nativeDetectLanguage(
 }
 
 JNIEXPORT jlong JNICALL
-Java_io_github_marcosholgado_translatekit_TranslateKit_nativeLoadModel(
+Java_com_duckduckgo_translatekit_TranslateKit_nativeLoadModel(
         JNIEnv* env, jobject, jlong context_ptr, jstring source_lang, jstring target_lang,
         jstring model_path, jobjectArray vocab_paths, jstring shortlist_path,
         jstring config_path, jint num_workers) {
@@ -127,7 +127,7 @@ Java_io_github_marcosholgado_translatekit_TranslateKit_nativeLoadModel(
 /* ---- TranslationModel -------------------------------------------------- */
 
 JNIEXPORT jobject JNICALL
-Java_io_github_marcosholgado_translatekit_TranslationModel_nativeTranslate(
+Java_com_duckduckgo_translatekit_TranslationModel_nativeTranslate(
         JNIEnv* env, jobject, jlong model_ptr, jstring input, jboolean is_html) {
     auto* model = reinterpret_cast<tk_model*>(model_ptr);
     const std::string in = ToString(env, input);
@@ -143,7 +143,7 @@ Java_io_github_marcosholgado_translatekit_TranslationModel_nativeTranslate(
     // them (result.quality_scores) for Phase C; build a List<Float> here then.
     tk_translation_result_free(&result);
 
-    jclass cls = env->FindClass("io/github/marcosholgado/translatekit/TranslationResult");
+    jclass cls = env->FindClass("com/duckduckgo/translatekit/TranslationResult");
     jmethodID ctor = env->GetMethodID(cls, "<init>", "(Ljava/lang/String;Ljava/util/List;)V");
     jobject obj = env->NewObject(cls, ctor, text, nullptr);
     env->DeleteLocalRef(text);
@@ -152,7 +152,7 @@ Java_io_github_marcosholgado_translatekit_TranslationModel_nativeTranslate(
 }
 
 JNIEXPORT void JNICALL
-Java_io_github_marcosholgado_translatekit_TranslationModel_nativeClose(
+Java_com_duckduckgo_translatekit_TranslationModel_nativeClose(
         JNIEnv*, jobject, jlong model_ptr) {
     tk_model_close(reinterpret_cast<tk_model*>(model_ptr));
 }

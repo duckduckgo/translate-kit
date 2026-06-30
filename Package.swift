@@ -24,7 +24,7 @@ import Foundation
 //
 // This manifest lives at the repo ROOT (not under apple/) so the package resolves
 // as a remote SwiftPM dependency by Git URL + version: a consuming app adds
-// `https://github.com/marcosholgado/translate-kit` and SwiftPM downloads the
+// `https://github.com/duckduckgo/translate-kit` and SwiftPM downloads the
 // prebuilt XCFramework from the matching GitHub Release — no need to clone this
 // repo or build the C++ engine. The Swift sources and tests stay under apple/ and
 // are referenced here via explicit `path:`.
@@ -46,7 +46,7 @@ let binaryTarget: Target = useLocalXCFramework
         name: "CTranslateKit",
         // RELEASE-MANAGED: the version in this URL and the checksum are rewritten
         // by .github/workflows/release.yml for each release; do not hand-edit.
-        url: "https://github.com/marcosholgado/translate-kit/releases/download/v0.1.0/TranslateKit.xcframework.zip",
+        url: "https://github.com/duckduckgo/translate-kit/releases/download/v0.1.0/TranslateKit.xcframework.zip",
         checksum: "52e81c56f32e5dfc4944e35a9b2236c8f97014d48cc70269c792bcc7542340ad")
 
 let package = Package(
