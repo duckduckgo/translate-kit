@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Marcos Holgado
+ * Copyright 2026 DuckDuckGo
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,16 +17,44 @@
 plugins {
     id 'com.android.library'
     id 'org.jetbrains.kotlin.android'
-    id 'maven-publish'
+    id "com.vanniktech.maven.publish"
 }
 
-ext {
-    GROUP_ID = 'com.duckduckgo.translatekit'
-    ARTIFACT_ID = 'translate-kit-android'
-    // Version single source of truth: the platform-neutral repo-root VERSION file
-    // (rootDir is the android/ Gradle project, so go up one). A -PVERSION_NAME
-    // override wins — that is how the release workflow stamps the published version.
-    VERSION_NAME = project.findProperty('VERSION_NAME') ?: file("${rootDir}/../VERSION").text.trim()
+// Version single source of truth: the platform-neutral repo-root VERSION file
+// (rootDir is the android/ Gradle project, so go up one). A -PVERSION_NAME
+// override wins — that is how the release workflow stamps the published version.
+def versionName = project.findProperty('VERSION_NAME') ?: file("${rootDir}/../VERSION").text.trim()
+
+mavenPublishing {
+    publishToMavenCentral()
+    signAllPublications()
+    coordinates("com.duckduckgo.translatekit", "translate-kit-android", versionName)
+
+    pom {
+        name = "translate-kit-android"
+        description = "On-device neural machine translation + offline language detection for Android."
+        inceptionYear = "2026"
+        url = "https://github.com/duckduckgo/translate-kit"
+        licenses {
+            license {
+                name = "Apache License Version 2.0"
+                url = "https://github.com/duckduckgo/translate-kit/blob/main/LICENSE"
+                distribution = "https://github.com/duckduckgo/translate-kit/blob/main/LICENSE"
+            }
+        }
+        developers {
+            developer {
+                id = "duckduckgo"
+                name = "DuckDuckGo"
+                url = "https://github.com/duckduckgo/"
+            }
+        }
+        scm {
+            url = "https://github.com/duckduckgo/translate-kit"
+            connection = "scm:git:git://github.com/duckduckgo/translate-kit.git"
+            developerConnection = "scm:git:ssh://git@github.com:duckduckgo/translate-kit.git"
+        }
+    }
 }
 
 android {
@@ -102,12 +130,6 @@ android {
             jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
         }
     }
-
-    publishing {
-        singleVariant('release') {
-            withSourcesJar()
-        }
-    }
 }
 
 dependencies {
@@ -118,39 +140,4 @@ dependencies {
     androidTestImplementation 'androidx.test.ext:junit:1.2.1'
     androidTestImplementation 'androidx.test:runner:1.6.2'
     androidTestImplementation 'androidx.test:core:1.6.1'
-}
-
-afterEvaluate {
-    publishing {
-        publications {
-            release(MavenPublication) {
-                from components.release
-                groupId = GROUP_ID
-                artifactId = ARTIFACT_ID
-                version = VERSION_NAME
-
-                pom {
-                    name = 'translate-kit'
-                    description = 'On-device neural machine translation + offline language detection.'
-                    url = 'https://github.com/duckduckgo/translate-kit'
-                    licenses {
-                        license {
-                            name = 'The Apache License, Version 2.0'
-                            url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
-                        }
-                    }
-                }
-            }
-        }
-        repositories {
-            maven {
-                name = 'GitHubPackages'
-                url = 'https://maven.pkg.github.com/duckduckgo/translate-kit'
-                credentials {
-                    username = System.getenv('GITHUB_ACTOR') ?: (project.findProperty('gpr.user') ?: '')
-                    password = System.getenv('GITHUB_TOKEN') ?: (project.findProperty('gpr.key') ?: '')
-                }
-            }
-        }
-    }
 }
