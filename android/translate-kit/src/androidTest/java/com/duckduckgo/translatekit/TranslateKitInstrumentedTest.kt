@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.github.marcosholgado.translatekit
+package com.duckduckgo.translatekit
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider

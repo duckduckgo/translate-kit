@@ -21,7 +21,7 @@ plugins {
 }
 
 ext {
-    GROUP_ID = 'io.github.marcosholgado'
+    GROUP_ID = 'com.duckduckgo.translatekit'
     ARTIFACT_ID = 'translate-kit-android'
     // Version single source of truth: the platform-neutral repo-root VERSION file
     // (rootDir is the android/ Gradle project, so go up one). A -PVERSION_NAME
@@ -30,7 +30,7 @@ ext {
 }
 
 android {
-    namespace 'io.github.marcosholgado.translatekit'
+    namespace 'com.duckduckgo.translatekit'
     compileSdk 35
     ndkVersion '28.2.13676358'
 
@@ -132,7 +132,7 @@ afterEvaluate {
                 pom {
                     name = 'translate-kit'
                     description = 'On-device neural machine translation + offline language detection.'
-                    url = 'https://github.com/marcosholgado/translate-kit'
+                    url = 'https://github.com/duckduckgo/translate-kit'
                     licenses {
                         license {
                             name = 'The Apache License, Version 2.0'
@@ -145,7 +145,7 @@ afterEvaluate {
         repositories {
             maven {
                 name = 'GitHubPackages'
-                url = 'https://maven.pkg.github.com/marcosholgado/translate-kit'
+                url = 'https://maven.pkg.github.com/duckduckgo/translate-kit'
                 credentials {
                     username = System.getenv('GITHUB_ACTOR') ?: (project.findProperty('gpr.user') ?: '')
                     password = System.getenv('GITHUB_TOKEN') ?: (project.findProperty('gpr.key') ?: '')

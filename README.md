@@ -149,10 +149,10 @@ The library is distributed as a prebuilt XCFramework via Swift Package Manager â
 
 ## Coordinates
 
-**Android (Maven, GitHub Packages)**
+**Android (Maven Central)**
 
 ```
-io.github.marcosholgado:translate-kit-android:<version>
+com.duckduckgo.translatekit:translate-kit-android:<version>
 ```
 
 **Apple (Swift Package Manager)**
@@ -162,7 +162,7 @@ GitHub Release, so consumers don't clone this repo or build the C++ engine:
 
 ```swift
 // In your Package.swift dependencies:
-.package(url: "https://github.com/marcosholgado/translate-kit.git", from: "0.1.0"),
+.package(url: "https://github.com/duckduckgo/translate-kit.git", from: "0.1.0"),
 // â€¦then add the "TranslateKit" product to your target's dependencies.
 ```
 

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.github.marcosholgado.translatekit
+package com.duckduckgo.translatekit
 
 /**
  * Describes one (source -> target) translation model to load.
