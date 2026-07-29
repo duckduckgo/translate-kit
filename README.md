@@ -15,18 +15,6 @@ needs no model file and no network.
 > **Privacy:** the library never touches the network. It does no model downloading and consumes only
 > on-disk model paths supplied by the caller. Everything stays on-device.
 
-## Status
-
-Early development. Built in phases:
-
-| Phase | Scope | State |
-|-------|-------|-------|
-| A | Repo scaffold, full public API, publishable AAR (stub native core) | done |
-| B | Offline language detection (CLD2, compiled-in) | done |
-| C | Bergamot NMT engine integration (HTML-aware translate) | done (arm64-v8a + x86_64) |
-| D | Golden tests, third-party license notices, release workflow | done |
-| E | Apple wrapper (macOS/iOS) — Swift package over a prebuilt XCFramework | in progress |
-
 ## Requirements
 
 **Android**
