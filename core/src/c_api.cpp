@@ -59,7 +59,10 @@ struct tk_model {
 
 extern "C" {
 
-const char* tk_version(void) { return "0.1.0"; }
+#ifndef TK_VERSION
+#error "TK_VERSION not defined - see the Version block in core/CMakeLists.txt"
+#endif
+const char* tk_version(void) { return TK_VERSION; }
 
 const char* tk_last_error(void) { return g_last_error.c_str(); }
 

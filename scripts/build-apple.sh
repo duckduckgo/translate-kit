@@ -298,14 +298,24 @@ build_slice() {
 }
 
 # stage_headers <dir>
-# Stages the C ABI header + clang module map into <dir>, the layout the
-# XCFramework copies into each slice's Headers/ so Swift can `import CTranslateKit`.
+# Stages the C ABI header into <dir>, which the XCFramework copies into each
+# slice's Headers/. Headers only, no module map: Xcode merges every xcframework's
+# Headers/ into one shared include dir, where a module map collides with other
+# packages'. The clang module is owned by the CTranslateKit source target
+# (apple/cmodule/include) — see Package.swift.
 stage_headers() {
     local dir="$1"
+    # That target carries its own copy of the header; the module map it declares
+    # must describe the same ABI as the binary being built here.
+    cmp -s "$REPO_ROOT/core/include/translate_kit/translate_kit.h" \
+           "$REPO_ROOT/apple/cmodule/include/translate_kit/translate_kit.h" || {
+        echo "ERROR: apple/cmodule/include/translate_kit/translate_kit.h is out of sync" >&2
+        echo "       with core/include/translate_kit/translate_kit.h — copy it over." >&2
+        exit 1
+    }
     rm -rf "$dir"
     mkdir -p "$dir/translate_kit"
     cp "$REPO_ROOT/core/include/translate_kit/translate_kit.h" "$dir/translate_kit/"
-    cp "$REPO_ROOT/apple/cmodule/module.modulemap" "$dir/module.modulemap"
 }
 
 # Build each requested slice. The arch is the trailing token of the slice name
