@@ -11,7 +11,7 @@
 # Applies translate-kit's local patches to the vendored Bergamot engine
 # (third_party/translations). Run once after checking out the engine submodules:
 #
-#   git submodule update --init --recursive third_party/translations
+#   git submodule update --init --checkout --recursive third_party/translations
 #   scripts/apply-engine-patches.sh
 #
 # Idempotent: patches already present are skipped. The patches are NOT committed
@@ -100,7 +100,7 @@ PATCH_DIR="$REPO_ROOT/third_party/patches"
 
 if [ ! -d "$ENGINE_DIR/inference" ]; then
     echo "error: engine submodule not initialized at $ENGINE_DIR" >&2
-    echo "  run: git submodule update --init --recursive third_party/translations" >&2
+    echo "  run: git submodule update --init --checkout --recursive third_party/translations" >&2
     exit 1
 fi
 
