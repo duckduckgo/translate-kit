@@ -61,7 +61,7 @@ function(translatekit_add_engine engine_dir)
     if(NOT EXISTS ${engine_dir}/CMakeLists.txt)
         message(FATAL_ERROR
             "TRANSLATEKIT_WITH_ENGINE=ON but the engine is missing at ${engine_dir}.\n"
-            "Run: git submodule update --init --recursive third_party/translations\n"
+            "Run: git submodule update --init --checkout --recursive third_party/translations\n"
             "Then: scripts/apply-engine-patches.sh")
     endif()
 

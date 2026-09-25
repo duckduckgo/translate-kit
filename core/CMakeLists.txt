@@ -113,7 +113,7 @@ target_compile_definitions(translatekit_core PRIVATE TK_VERSION="${TRANSLATEKIT_
 # Vendored at third_party/translations/inference (mozilla/translations v0.6.0).
 # Off by default so the unit tests build without the (large, slow) engine.
 # Requires the inference submodules + local engine patches:
-#   git submodule update --init --recursive third_party/translations
+#   git submodule update --init --checkout --recursive third_party/translations
 #   scripts/apply-engine-patches.sh
 if(TRANSLATEKIT_WITH_ENGINE)
     include(BergamotEngine)
