@@ -1,7 +1,14 @@
 [submodule "third_party/cld2"]
 	path = third_party/cld2
 	url = https://github.com/CLD2Owners/cld2.git
+	# SwiftPM runs a bare `git submodule update --init --recursive` on every
+	# package checkout. Consumers link the prebuilt XCFramework and need none of
+	# the engine source, so opt out by default; the builds that DO need it pass
+	# --checkout, which overrides this. See scripts/build-apple.sh.
+	update = none
 [submodule "third_party/translations"]
 	path = third_party/translations
 	url = https://github.com/mozilla/translations.git
 	shallow = true
+	# See the note on third_party/cld2 above.
+	update = none

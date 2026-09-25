@@ -46,8 +46,8 @@ C ABI in `core/include/translate_kit/translate_kit.h`. The Android module builds
 
 ```bash
 # 1. Engine submodules (the inference subset is enough for the build):
-git submodule update --init --recursive third_party/cld2
-git submodule update --init third_party/translations
+git submodule update --init --checkout --recursive third_party/cld2
+git submodule update --init --checkout third_party/translations
 git -C third_party/translations submodule update --init --recursive \
     inference/3rd_party/ssplit-cpp \
     inference/marian-fork/src/3rd_party/sentencepiece \

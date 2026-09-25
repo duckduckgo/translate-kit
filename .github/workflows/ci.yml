@@ -43,8 +43,8 @@ jobs:
 
       - name: Init engine submodules
         run: |
-          git submodule update --init --recursive third_party/cld2
-          git submodule update --init third_party/translations
+          git submodule update --init --checkout --recursive third_party/cld2
+          git submodule update --init --checkout third_party/translations
           # The README's set is ARM-only; x86_64 also needs intgemm.
           git -C third_party/translations submodule update --init --recursive \
             inference/3rd_party/ssplit-cpp \
@@ -85,8 +85,8 @@ jobs:
 
       - name: Init engine submodules
         run: |
-          git submodule update --init --recursive third_party/cld2
-          git submodule update --init third_party/translations
+          git submodule update --init --checkout --recursive third_party/cld2
+          git submodule update --init --checkout third_party/translations
           git -C third_party/translations submodule update --init --recursive \
             inference/3rd_party/ssplit-cpp \
             inference/marian-fork/src/3rd_party/sentencepiece \
@@ -141,8 +141,8 @@ jobs:
 
       - name: Init engine submodules
         run: |
-          git submodule update --init --recursive third_party/cld2
-          git submodule update --init third_party/translations
+          git submodule update --init --checkout --recursive third_party/cld2
+          git submodule update --init --checkout third_party/translations
           git -C third_party/translations submodule update --init --recursive \
             inference/3rd_party/ssplit-cpp \
             inference/marian-fork/src/3rd_party/sentencepiece \

@@ -34,8 +34,8 @@
 #        from whatever was built) so CI can build only what it tests. <- DONE
 #
 # Prerequisites (one-time, see README):
-#   git submodule update --init --recursive third_party/cld2
-#   git submodule update --init third_party/translations
+#   git submodule update --init --checkout --recursive third_party/cld2
+#   git submodule update --init --checkout third_party/translations
 #   git -C third_party/translations submodule update --init --recursive \
 #     inference/3rd_party/ssplit-cpp \
 #     inference/marian-fork/src/3rd_party/{sentencepiece,intgemm,ruy,simd_utils}
