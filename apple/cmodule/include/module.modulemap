@@ -1,0 +1,10 @@
+// Clang module map for the translate-kit C ABI. It makes the C ABI importable
+// from Swift as `CTranslateKit`; the public Swift `TranslateKit` target wraps it.
+// This lives in the CTranslateKit *source* target rather than in the XCFramework's
+// per-slice Headers/ on purpose: Xcode merges every xcframework's Headers/ into one
+// shared ProcessXCFramework include dir, where a module map collides with other
+// packages'. SwiftPM passes this one with -fmodule-map-file, per-target.
+module CTranslateKit {
+    header "translate_kit/translate_kit.h"
+    export *
+}

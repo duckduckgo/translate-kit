@@ -29,21 +29,25 @@ import Foundation
 // repo or build the C++ engine. The Swift sources and tests stay under apple/ and
 // are referenced here via explicit `path:`.
 //
-// Binary distribution: by default `CTranslateKit` is the prebuilt XCFramework from
-// the matching release (the `url:`/`checksum:` below are maintained per release by
-// .github/workflows/release.yml). For local development against a freshly-built
+// Binary distribution: by default `CTranslateKitBinary` is the prebuilt XCFramework
+// from the matching release (the `url:`/`checksum:` below are maintained per release
+// by .github/workflows/release.yml). For local development against a freshly-built
 // XCFramework — `scripts/build-apple.sh` then `swift test` — set the env var
 // TRANSLATEKIT_LOCAL_XCFRAMEWORK=1 to resolve apple/build/TranslateKit.xcframework
 // instead. (Until the first release is published, that env var is also how a
 // fresh checkout of `main` resolves, since the remote artifact does not yet exist.)
 let useLocalXCFramework = ProcessInfo.processInfo.environment["TRANSLATEKIT_LOCAL_XCFRAMEWORK"] != nil
 
+// The XCFramework carries headers only — no module map. Xcode stages every
+// xcframework's Headers/ into ONE shared ProcessXCFramework include dir, so a
+// module map in there collides with other packages' (Clibsodium, in the
+// DuckDuckGo workspace). The clang module lives in the CTranslateKit target below.
 let binaryTarget: Target = useLocalXCFramework
     ? .binaryTarget(
-        name: "CTranslateKit",
+        name: "CTranslateKitBinary",
         path: "apple/build/TranslateKit.xcframework")
     : .binaryTarget(
-        name: "CTranslateKit",
+        name: "CTranslateKitBinary",
         // RELEASE-MANAGED: the version in this URL and the checksum are rewritten
         // by .github/workflows/release.yml for each release; do not hand-edit.
         url: "https://github.com/duckduckgo/translate-kit/releases/download/v0.1.0/TranslateKit.xcframework.zip",
@@ -59,12 +63,18 @@ let package = Package(
         .library(name: "TranslateKit", targets: ["TranslateKit"]),
     ],
     targets: [
-        // Prebuilt engine + C ABI (CTranslateKit clang module), per-slice.
+        // Prebuilt engine + C ABI headers, per-slice.
         binaryTarget,
+        // Owns the CTranslateKit clang module, via apple/cmodule/include. SwiftPM
+        // passes this module map with -fmodule-map-file for this target only, so
+        // it never lands in the shared xcframework include dir. Source is one
+        // empty .c file; the header is a copy of core/include (build-apple.sh
+        // fails the build if the two drift).
+        .target(name: "CTranslateKit", path: "apple/cmodule"),
         // Public Swift API over the C ABI.
         .target(
             name: "TranslateKit",
-            dependencies: ["CTranslateKit"],
+            dependencies: ["CTranslateKit", "CTranslateKitBinary"],
             path: "apple/Sources/TranslateKit",
             linkerSettings: [
                 // System dependencies the merged static engine needs at final
