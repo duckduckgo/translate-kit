@@ -94,6 +94,21 @@ target_include_directories(translatekit_core
 
 target_link_libraries(translatekit_core PRIVATE cld2)
 
+# ---- Version ----------------------------------------------------------------
+# Single source of truth is the repo-root VERSION file, the same one
+# android/translate-kit/build.gradle reads, so tk_version() cannot drift from
+# what a release publishes. -DTRANSLATEKIT_VERSION=x.y.z overrides it (the
+# release workflow builds before the version is stamped into the tree).
+set(TRANSLATEKIT_VERSION "" CACHE STRING "Version reported by tk_version(); defaults to the root VERSION file")
+if(TRANSLATEKIT_VERSION STREQUAL "")
+    file(READ "${CMAKE_CURRENT_SOURCE_DIR}/../VERSION" TRANSLATEKIT_VERSION_RAW)
+    string(STRIP "${TRANSLATEKIT_VERSION_RAW}" TRANSLATEKIT_VERSION)
+endif()
+if(NOT TRANSLATEKIT_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
+    message(FATAL_ERROR "TRANSLATEKIT_VERSION must be MAJOR.MINOR.PATCH, got '${TRANSLATEKIT_VERSION}'")
+endif()
+target_compile_definitions(translatekit_core PRIVATE TK_VERSION="${TRANSLATEKIT_VERSION}")
+
 # ---- Bergamot translation engine -------------------------------------------
 # Vendored at third_party/translations/inference (mozilla/translations v0.6.0).
 # Off by default so the unit tests build without the (large, slow) engine.

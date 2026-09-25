@@ -25,6 +25,10 @@ FetchContent_MakeAvailable(googletest)
 
 add_executable(translatekit_core_test c_api_test.cpp)
 target_link_libraries(translatekit_core_test PRIVATE translatekit_core GTest::gtest_main)
+# Absolute path to the repo-root VERSION file, so VersionMatchesVersionFile can
+# read it at run time regardless of the working directory the test runs from.
+target_compile_definitions(translatekit_core_test
+        PRIVATE TK_VERSION_FILE="${CMAKE_CURRENT_SOURCE_DIR}/../../VERSION")
 
 include(GoogleTest)
 gtest_discover_tests(translatekit_core_test)

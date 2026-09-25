@@ -155,8 +155,16 @@ jobs:
 
       # Build the full, shippable XCFramework (universal macOS + Intel, iOS device,
       # universal simulator).
+      # Stamp VERSION before building: tk_version() is compiled in from this file
+      # (core/CMakeLists.txt), and the `release` job only writes it into the tree
+      # AFTER this job runs — so without this the shipped binary would report the
+      # PREVIOUS release's version. The android job gets the same value via
+      # -PVERSION_NAME instead.
       - name: Build XCFramework (all slices)
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
         run: |
+          echo "$VERSION" > VERSION
           export CMAKE_BIN="$ANDROID_HOME/cmake/3.22.1/bin/cmake"
           export NINJA_BIN="$ANDROID_HOME/cmake/3.22.1/bin/ninja"
           scripts/build-apple.sh

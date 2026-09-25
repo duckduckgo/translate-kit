@@ -20,6 +20,7 @@
 #include "translate_kit/translate_kit.h"
 
 #include <cstdlib>
+#include <fstream>
 #include <string>
 #include <vector>
 
@@ -53,6 +54,24 @@ tk_model* LoadStubModel(tk_context* ctx) {
 
 TEST(CApi, VersionIsNonEmpty) {
     EXPECT_STRNE(tk_version(), "");
+}
+
+// The version has two consumers that must agree: the Android AAR reads the
+// repo-root VERSION file at build time, and tk_version() gets it from CMake
+// (see the Version block in core/CMakeLists.txt). Reading the file again HERE,
+// at run time, is what makes that wiring load-bearing: hardcode a literal back
+// into c_api.cpp and this fails.
+TEST(CApi, VersionMatchesVersionFile) {
+    std::ifstream file(TK_VERSION_FILE);
+    ASSERT_TRUE(file.is_open()) << "cannot open " << TK_VERSION_FILE;
+
+    std::string expected;
+    ASSERT_TRUE(std::getline(file, expected)) << "VERSION file is empty";
+    while (!expected.empty() && (expected.back() == '\r' || expected.back() == ' ')) {
+        expected.pop_back();
+    }
+
+    EXPECT_EQ(std::string(tk_version()), expected);
 }
 
 TEST(CApi, InitRejectsNullOutArg) {
