@@ -50,8 +50,8 @@ let binaryTarget: Target = useLocalXCFramework
         name: "CTranslateKitBinary",
         // RELEASE-MANAGED: the version in this URL and the checksum are rewritten
         // by .github/workflows/release.yml for each release; do not hand-edit.
-        url: "https://github.com/duckduckgo/translate-kit/releases/download/v0.1.0/TranslateKit.xcframework.zip",
-        checksum: "2ef93f3cc29cbce6f2b742b509e177035f9c9c20fb3ed53720ce0a28eb337c8f")
+        url: "https://github.com/duckduckgo/translate-kit/releases/download/v0.2.0/TranslateKit.xcframework.zip",
+        checksum: "02a2ec9f1c6fa40e454b9c510ec3655206fe41c9114c2c2c20d7963144e55793")
 
 let package = Package(
     name: "TranslateKit",
