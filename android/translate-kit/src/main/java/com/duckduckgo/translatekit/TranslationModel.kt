@@ -33,11 +33,17 @@ class TranslationModel internal constructor(nativePointer: Long) {
      * Translate plain text, or an HTML fragment when [isHtml] is `true`. With
      * [isHtml], inline tags are preserved and re-aligned by the engine
      * (detag-and-project). Blocking.
+     *
+     * With [htmlAsJsonTree] (requires [isHtml]), the result's text is the
+     * translated HTML as a JSON array of `{"text": …}` and
+     * `{"tag", "attrs", "children"}` nodes, or the JSON literal `null` when the
+     * translated HTML is malformed. Passing it without [isHtml] throws.
      */
-    fun translate(input: String, isHtml: Boolean): TranslationResult {
+    @JvmOverloads
+    fun translate(input: String, isHtml: Boolean, htmlAsJsonTree: Boolean = false): TranslationResult {
         val ptr = nativePointer
         check(ptr != 0L) { "TranslationModel has been closed" }
-        return nativeTranslate(ptr, input, isHtml)
+        return nativeTranslate(ptr, input, isHtml, htmlAsJsonTree)
     }
 
     /**
@@ -45,12 +51,14 @@ class TranslationModel internal constructor(nativePointer: Long) {
      * each. A sentence's output can differ slightly from the single-input
      * overload's, because the engine's output-vocabulary shortlist is shared
      * across the batch. Throws if any input fails, returning no results.
+     * [htmlAsJsonTree] applies to every input as in the single-input overload.
      * Blocking.
      */
-    fun translate(inputs: List<String>, isHtml: Boolean): List<TranslationResult> {
+    @JvmOverloads
+    fun translate(inputs: List<String>, isHtml: Boolean, htmlAsJsonTree: Boolean = false): List<TranslationResult> {
         val ptr = nativePointer
         check(ptr != 0L) { "TranslationModel has been closed" }
-        return nativeTranslateBatch(ptr, inputs.toTypedArray(), isHtml).asList()
+        return nativeTranslateBatch(ptr, inputs.toTypedArray(), isHtml, htmlAsJsonTree).asList()
     }
 
     /** Releases native memory. Idempotent. */
@@ -72,12 +80,14 @@ class TranslationModel internal constructor(nativePointer: Long) {
         nativePointer: Long,
         input: String,
         isHtml: Boolean,
+        htmlAsJsonTree: Boolean,
     ): TranslationResult
 
     private external fun nativeTranslateBatch(
         nativePointer: Long,
         inputs: Array<String>,
         isHtml: Boolean,
+        htmlAsJsonTree: Boolean,
     ): Array<TranslationResult>
 
     private external fun nativeClose(nativePointer: Long)

@@ -44,14 +44,22 @@ public final class TranslationModel {
     /// Translates plain text, or an HTML fragment when `isHtml` is `true`. With
     /// `isHtml`, inline tags are preserved and re-aligned by the engine
     /// (detag-and-project). Blocking.
-    public func translate(_ input: String, isHtml: Bool) throws -> TranslationResult {
+    ///
+    /// With `htmlAsJSONTree` (requires `isHtml`), `text` is the translated HTML as
+    /// a JSON array of `{"text": …}` and `{"tag", "attrs", "children"}` nodes, or
+    /// the JSON literal `null` when the translated HTML is malformed. Passing it
+    /// without `isHtml` throws ``TranslateKitError/invalidArgument(_:)``.
+    public func translate(_ input: String, isHtml: Bool, htmlAsJSONTree: Bool = false) throws -> TranslationResult {
         guard let handle else {
             throw TranslateKitError.notInitialized("TranslationModel has been closed")
         }
 
+        var options = tk_translate_options()
+        options.is_html = isHtml ? 1 : 0
+        options.html_as_json_tree = htmlAsJSONTree ? 1 : 0
         var result = tk_translation_result()
         let status = input.withCString {
-            tk_translate(handle, $0, Int32(isHtml ? 1 : 0), &result)
+            tk_translate_ex(handle, $0, &options, &result)
         }
         // Free the engine-owned buffers on every path; safe on a zeroed struct.
         defer { tk_translation_result_free(&result) }
@@ -63,8 +71,9 @@ public final class TranslationModel {
     /// each. A sentence's output can differ slightly from the single-input
     /// overload's, because the engine's output-vocabulary shortlist is shared
     /// across the batch. Throws if any input fails, returning no results.
+    /// `htmlAsJSONTree` applies to every input as in the single-input overload.
     /// Blocking.
-    public func translate(_ inputs: [String], isHtml: Bool) throws -> [TranslationResult] {
+    public func translate(_ inputs: [String], isHtml: Bool, htmlAsJSONTree: Bool = false) throws -> [TranslationResult] {
         guard let handle else {
             throw TranslateKitError.notInitialized("TranslationModel has been closed")
         }
@@ -73,9 +82,12 @@ public final class TranslationModel {
         defer { copies.forEach { free($0) } }
         let pointers: [UnsafePointer<CChar>?] = copies.map { UnsafePointer($0) }
 
+        var options = tk_translate_options()
+        options.is_html = isHtml ? 1 : 0
+        options.html_as_json_tree = htmlAsJSONTree ? 1 : 0
         var results = [tk_translation_result](repeating: tk_translation_result(), count: inputs.count)
         let status = pointers.withUnsafeBufferPointer {
-            tk_translate_batch(handle, $0.baseAddress, inputs.count, Int32(isHtml ? 1 : 0), &results)
+            tk_translate_batch_ex(handle, $0.baseAddress, inputs.count, &options, &results)
         }
         defer { for i in results.indices { tk_translation_result_free(&results[i]) } }
         try tkCheck(status)

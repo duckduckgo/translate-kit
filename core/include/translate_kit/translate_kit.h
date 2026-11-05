@@ -28,6 +28,7 @@
  *   tk_load_model          -> TranslateKit.loadModel
  *   tk_model_close         -> TranslateKit.unloadModel / TranslationModel.close
  *   tk_translate           -> TranslationModel.translate
+ *   tk_translate_ex        -> TranslationModel.translate(..., htmlAsJsonTree)
  *
  * Thread-safety: a `tk_context` and the `tk_model`s loaded from it may be used
  * from a single background thread at a time. All calls are BLOCKING; the caller
@@ -120,6 +121,12 @@ typedef struct tk_model_spec {
     int num_workers;                  /* >= 1 */
 } tk_model_spec;
 
+/* Options for tk_translate_ex. Zero-initialize, then set what you need. */
+typedef struct tk_translate_options {
+    int is_html;            /* input is an HTML fragment (as tk_translate's is_html) */
+    int html_as_json_tree;  /* return the translated HTML as a JSON tree; requires is_html */
+} tk_translate_options;
+
 /* ---- API ---------------------------------------------------------------- */
 
 /* Library version string, e.g. "0.1.0". Never null. */
@@ -156,6 +163,19 @@ TK_EXPORT tk_status tk_translate(tk_model* model,
                                  int is_html,
                                  tk_translation_result* out_result);
 
+/* tk_translate with options. With is_html and html_as_json_tree set, the input
+ * is translated exactly as tk_translate does, and result.text then holds the
+ * translated HTML as a JSON array of nodes, each either
+ *   {"text": "..."}  or  {"tag": "b", "attrs": {"data-t": "0"}, "children": [...]}
+ * (entities decoded, tag names lowercased, nothing filtered). If the translated
+ * HTML is malformed, result.text is the JSON literal "null" and the status is
+ * still TK_OK; the HTML string is never returned in its place.
+ * html_as_json_tree without is_html is TK_ERR_INVALID_ARG. Blocking. */
+TK_EXPORT tk_status tk_translate_ex(tk_model* model,
+                                    const char* input,
+                                    const tk_translate_options* options,
+                                    tk_translation_result* out_result);
+
 /* Decompress the zstd file at `zst_path` to `out_path`, streaming to disk. The
  * output goes to a temporary file next to `out_path`, synced to disk, and
  * renamed into place only once complete, so a failure or power loss never
@@ -180,6 +200,14 @@ TK_EXPORT tk_status tk_translate_batch(tk_model* model,
                                        size_t count,
                                        int is_html,
                                        tk_translation_result* out_results);
+
+/* tk_translate_batch with options, applied to every input as tk_translate_ex
+ * applies them. Blocking. */
+TK_EXPORT tk_status tk_translate_batch_ex(tk_model* model,
+                                          const char* const* inputs,
+                                          size_t count,
+                                          const tk_translate_options* options,
+                                          tk_translation_result* out_results);
 
 /* Release the contents of a translation result (its text + quality buffer).
  * Safe to call with a zero-initialized struct. Does not free `result` itself. */
