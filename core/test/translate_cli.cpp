@@ -18,9 +18,12 @@
 // engine at an extracted Bergamot model directory (model + vocab + shortlist +
 // config, e.g. from scripts/fetch-models.sh) and translates argv text.
 //
-//   translate_cli <model-dir> <src> <tgt> [--html] "text to translate"
+//   translate_cli <model-dir> <src> <tgt> [--html | --json-tree] "text to translate"
 //   translate_cli models/test-models/ende.student.tiny11 en de "Hello World!"
 //   translate_cli models/test-models/ende.student.tiny11 en de --html "<b>Hello World!</b>"
+//   translate_cli models/test-models/ende.student.tiny11 en de --json-tree "<b>Hello World!</b>"
+//
+// --json-tree implies --html and prints the translated HTML as a JSON tree.
 
 #include <cstdio>
 #include <filesystem>
@@ -47,7 +50,7 @@ static std::string FindFile(const std::string& dir, const std::string& prefix,
 int main(int argc, char** argv) {
     if (argc < 5) {
         std::fprintf(stderr,
-                     "usage: %s <model-dir> <src> <tgt> [--html] \"text\"\n", argv[0]);
+                     "usage: %s <model-dir> <src> <tgt> [--html | --json-tree] \"text\"\n", argv[0]);
         return 2;
     }
     const std::string dir = argv[1];
@@ -55,9 +58,13 @@ int main(int argc, char** argv) {
     const std::string tgt = argv[3];
 
     int argi = 4;
-    bool isHtml = false;
+    tk_translate_options options = {};
     if (std::string(argv[argi]) == "--html") {
-        isHtml = true;
+        options.is_html = 1;
+        ++argi;
+    } else if (std::string(argv[argi]) == "--json-tree") {
+        options.is_html = 1;
+        options.html_as_json_tree = 1;
         ++argi;
     }
     std::string text;
@@ -96,7 +103,7 @@ int main(int argc, char** argv) {
     }
 
     tk_translation_result r = {};
-    if (tk_translate(m, text.c_str(), isHtml ? 1 : 0, &r) != TK_OK) {
+    if (tk_translate_ex(m, text.c_str(), &options, &r) != TK_OK) {
         std::fprintf(stderr, "translate failed: %s\n", tk_last_error());
         tk_model_close(m);
         tk_shutdown(ctx);

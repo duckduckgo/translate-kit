@@ -159,6 +159,26 @@ final class TranslateKitTests: XCTestCase {
         }
     }
 
+    // Mirrors c_api_test.cpp's JSON-tree case.
+    func testTranslateHtmlAsJSONTree() throws {
+        let dir = try requireModelDirectory()
+        let kit = try TranslateKit()
+        let model = try kit.loadModel(enDeSpec(dir))
+        defer { model.close() }
+
+        let result = try model.translate("<b>Hello World!</b>", isHtml: true, htmlAsJSONTree: true)
+        XCTAssertEqual(result.text, #"[{"tag":"b","attrs":{},"children":[{"text":"Hallo Welt!"}]}]"#)
+
+        let batch = try model.translate(["<b>Hello World!</b>"], isHtml: true, htmlAsJSONTree: true)
+        XCTAssertEqual(batch.map(\.text), [result.text])
+
+        XCTAssertThrowsError(try model.translate("x", isHtml: false, htmlAsJSONTree: true)) { error in
+            guard case TranslateKitError.invalidArgument = error else {
+                return XCTFail("expected .invalidArgument, got \(error)")
+            }
+        }
+    }
+
     func testBatchTranslate() throws {
         let dir = try requireModelDirectory()
         let kit = try TranslateKit()

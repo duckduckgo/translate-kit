@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-/// Result of ``TranslationModel/translate(_:isHtml:)``.
+/// Result of ``TranslationModel/translate(_:isHtml:htmlAsJSONTree:)``.
 public struct TranslationResult: Equatable {
-    /// The translated text or HTML.
+    /// The translated text or HTML, or the HTML's JSON tree (`"null"` if malformed).
     public let text: String
     /// Optional per-sentence quality estimates; `nil` unless a quality model is
     /// loaded and scores are requested.

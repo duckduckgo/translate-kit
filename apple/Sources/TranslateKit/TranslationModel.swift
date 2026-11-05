@@ -38,14 +38,22 @@ public final class TranslationModel {
     /// Translates plain text, or an HTML fragment when `isHtml` is `true`. With
     /// `isHtml`, inline tags are preserved and re-aligned by the engine
     /// (detag-and-project). Blocking.
-    public func translate(_ input: String, isHtml: Bool) throws -> TranslationResult {
+    ///
+    /// With `htmlAsJSONTree` (requires `isHtml`), `text` is the translated HTML as
+    /// a JSON array of `{"text": …}` and `{"tag", "attrs", "children"}` nodes, or
+    /// the JSON literal `null` when the translated HTML is malformed. Passing it
+    /// without `isHtml` throws ``TranslateKitError/invalidArgument(_:)``.
+    public func translate(_ input: String, isHtml: Bool, htmlAsJSONTree: Bool = false) throws -> TranslationResult {
         guard let handle else {
             throw TranslateKitError.notInitialized("TranslationModel has been closed")
         }
 
+        var options = tk_translate_options()
+        options.is_html = isHtml ? 1 : 0
+        options.html_as_json_tree = htmlAsJSONTree ? 1 : 0
         var result = tk_translation_result()
         let status = input.withCString {
-            tk_translate(handle, $0, Int32(isHtml ? 1 : 0), &result)
+            tk_translate_ex(handle, $0, &options, &result)
         }
         // Free the engine-owned buffers on every path; safe on a zeroed struct.
         defer { tk_translation_result_free(&result) }
@@ -60,8 +68,8 @@ public final class TranslationModel {
     }
 
     /// Batch overload. Blocking.
-    public func translate(_ inputs: [String], isHtml: Bool) throws -> [TranslationResult] {
-        try inputs.map { try translate($0, isHtml: isHtml) }
+    public func translate(_ inputs: [String], isHtml: Bool, htmlAsJSONTree: Bool = false) throws -> [TranslationResult] {
+        try inputs.map { try translate($0, isHtml: isHtml, htmlAsJSONTree: htmlAsJSONTree) }
     }
 
     /// Releases native memory. Idempotent.

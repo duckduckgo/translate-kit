@@ -128,12 +128,16 @@ Java_com_duckduckgo_translatekit_TranslateKit_nativeLoadModel(
 
 JNIEXPORT jobject JNICALL
 Java_com_duckduckgo_translatekit_TranslationModel_nativeTranslate(
-        JNIEnv* env, jobject, jlong model_ptr, jstring input, jboolean is_html) {
+        JNIEnv* env, jobject, jlong model_ptr, jstring input, jboolean is_html,
+        jboolean html_as_json_tree) {
     auto* model = reinterpret_cast<tk_model*>(model_ptr);
     const std::string in = ToString(env, input);
 
+    tk_translate_options options = {};
+    options.is_html = is_html ? 1 : 0;
+    options.html_as_json_tree = html_as_json_tree ? 1 : 0;
     tk_translation_result result = {};
-    if (tk_translate(model, in.c_str(), is_html ? 1 : 0, &result) != TK_OK) {
+    if (tk_translate_ex(model, in.c_str(), &options, &result) != TK_OK) {
         ThrowRuntime(env, tk_last_error());
         return nullptr;
     }

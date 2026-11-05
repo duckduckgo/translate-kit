@@ -99,8 +99,10 @@ model.close()
 
 All native calls are **blocking** — call them off the main thread (e.g. a coroutine on an IO dispatcher).
 `translate(input, isHtml = true)` preserves inline HTML tags via the engine's alignment-based
-detag-and-project. The library is single-hop per loaded model; non-English↔non-English pairs are pivoted
-through English by the caller.
+detag-and-project. Add `htmlAsJsonTree = true` to get the translated HTML as a JSON tree of
+`{"text"}` / `{"tag", "attrs", "children"}` nodes instead (the JSON `null` if the output is malformed),
+so a page script never has to parse HTML. The library is single-hop per loaded model; non-English↔non-English
+pairs are pivoted through English by the caller.
 
 ## Apple usage (Swift)
 
@@ -126,7 +128,7 @@ model.close()
 ```
 
 The Swift API mirrors the Android facade 1:1: `TranslateKit` (`init()` / `detectLanguage(_:)` /
-`loadModel(_:)` / `unloadModel(_:)`) and `TranslationModel` (`translate(_:isHtml:)`, a batch overload,
+`loadModel(_:)` / `unloadModel(_:)`) and `TranslationModel` (`translate(_:isHtml:htmlAsJSONTree:)`, a batch overload,
 and `close()` — also wired to `deinit`). Language detection (CLD2) needs no model file. All calls are
 **blocking** — invoke them off the main thread (e.g. a background `Task`/`DispatchQueue`); a `TranslateKit`
 and the `TranslationModel`s loaded from it are **not** thread-safe, so serialize access. Deployment

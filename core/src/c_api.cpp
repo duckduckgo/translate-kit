@@ -27,6 +27,7 @@
 #include <string>
 #include <vector>
 
+#include "html_tree.h"
 #include "language_detector.h"
 #include "translator.h"
 
@@ -166,6 +167,15 @@ tk_status tk_translate(tk_model* model,
                        const char* input,
                        int is_html,
                        tk_translation_result* out_result) {
+    tk_translate_options options = {};
+    options.is_html = is_html;
+    return tk_translate_ex(model, input, &options, out_result);
+}
+
+tk_status tk_translate_ex(tk_model* model,
+                          const char* input,
+                          const tk_translate_options* options,
+                          tk_translation_result* out_result) {
     clear_error();
     if (out_result == nullptr) {
         set_error("tk_translate: out_result is null");
@@ -182,9 +192,20 @@ tk_status tk_translate(tk_model* model,
         set_error("tk_translate: input is null");
         return TK_ERR_INVALID_ARG;
     }
+    if (options == nullptr) {
+        set_error("tk_translate_ex: options is null");
+        return TK_ERR_INVALID_ARG;
+    }
+    if (options->html_as_json_tree != 0 && options->is_html == 0) {
+        set_error("tk_translate_ex: html_as_json_tree requires is_html");
+        return TK_ERR_INVALID_ARG;
+    }
     try {
         translatekit::TranslationResult r =
-            model->translator.translate(std::string(input), is_html != 0);
+            model->translator.translate(std::string(input), options->is_html != 0);
+        if (options->html_as_json_tree != 0) {
+            r.text = translatekit::HtmlToJsonTree(r.text).value_or("null");
+        }
         out_result->text = dup_cstr(r.text);
         if (out_result->text == nullptr) {
             set_error("tk_translate: out of memory");

@@ -21,6 +21,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.AfterClass
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Before
@@ -110,6 +111,21 @@ class TranslateKitInstrumentedTest {
                 failures.joinToString("\n"),
             failures.isEmpty(),
         )
+    }
+
+    // Mirrors core/test/c_api_test.cpp's JSON-tree case.
+    @Test
+    fun translateHtml_asJsonTree() {
+        val model = enDeModelOrSkip()
+        val out = model.translate("<b>Hello World!</b>", isHtml = true, htmlAsJsonTree = true).text
+        assertEquals("""[{"tag":"b","attrs":{},"children":[{"text":"Hallo Welt!"}]}]""", out)
+
+        val batch = model.translate(listOf("<b>Hello World!</b>"), isHtml = true, htmlAsJsonTree = true)
+        assertEquals(listOf(out), batch.map { it.text })
+
+        assertThrows(RuntimeException::class.java) {
+            model.translate("x", isHtml = false, htmlAsJsonTree = true)
+        }
     }
 
     private fun enDeModelOrSkip(): TranslationModel {

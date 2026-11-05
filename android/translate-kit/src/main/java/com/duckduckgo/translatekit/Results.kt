@@ -19,7 +19,7 @@ package com.duckduckgo.translatekit
 /**
  * Result of [TranslationModel.translate].
  *
- * @param text the translated text or HTML.
+ * @param text the translated text or HTML, or the HTML's JSON tree (`"null"` if malformed).
  * @param qualityScores optional per-sentence quality estimates; `null` unless a
  *   quality model is loaded and scores are requested.
  */
