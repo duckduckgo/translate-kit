@@ -69,15 +69,27 @@ final class TranslateKitTests: XCTestCase {
         for testCase in cases {
             let result = try kit.detectLanguage(testCase.text)
             XCTAssertEqual(result.language, testCase.expected, testCase.text)
-            XCTAssertGreaterThan(result.confidence, 0, testCase.text)
+            XCTAssertTrue(result.isReliable, testCase.text)
+            XCTAssertEqual(result.topLanguages.first?.language, testCase.expected, testCase.text)
         }
     }
 
     func testDetectEmptyIsUndetermined() throws {
         let kit = try TranslateKit()
         let result = try kit.detectLanguage("")
-        XCTAssertEqual(result.language, "und")
-        XCTAssertEqual(result.confidence, 0)
+        XCTAssertEqual(result, LanguageResult(language: nil, isReliable: false, topLanguages: []))
+    }
+
+    // Mirrors c_api_test.cpp's mixed case: English leads by share, CLD2 picks Spanish.
+    func testDetectMixedReportsTopLanguages() throws {
+        let kit = try TranslateKit()
+        let result = try kit.detectLanguage(
+            "Esta es una frase sencilla escrita en el idioma español para realizar algunas pruebas. "
+                + "This is a simple sentence written in the English language for testing purposes.")
+        XCTAssertEqual(result.language, "es")
+        XCTAssertTrue(result.isReliable)
+        XCTAssertEqual(result.topLanguages.map(\.language), ["en", "es"])
+        XCTAssertTrue(result.topLanguages.allSatisfy { $0.percent > 40 }, "\(result.topLanguages)")
     }
 
     // MARK: - Errors (engine-independent)

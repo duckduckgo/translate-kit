@@ -82,7 +82,7 @@ scripts/build-apple.sh macos-arm64 iossim-arm64   # or a subset; the XCFramework
 ```kotlin
 TranslateKit.init(context)                 // loads the native library + inits the engine. Idempotent. Blocking.
 
-val lang = TranslateKit.detectLanguage(text)            // LanguageResult(language, confidence)
+val lang = TranslateKit.detectLanguage(text)            // LanguageResult(language, isReliable, topLanguages)
 
 val model = TranslateKit.loadModel(
     ModelSpec(
@@ -99,6 +99,9 @@ model.close()
 ```
 
 All native calls are **blocking** — call them off the main thread (e.g. a coroutine on an IO dispatcher).
+`detectLanguage` returns CLD2's overall pick (`language`, `null` when undetermined), its own `isReliable`
+verdict, and up to three `topLanguages` with their percentage of the text. Only offer translation when
+`isReliable` is true.
 `translate(input, isHtml = true)` preserves inline HTML tags via the engine's alignment-based
 detag-and-project. The library is single-hop per loaded model; non-English↔non-English pairs are pivoted
 through English by the caller.
@@ -110,7 +113,7 @@ import TranslateKit
 
 let kit = try TranslateKit()                            // inits the engine. Blocking.
 
-let lang = try kit.detectLanguage(text)                 // LanguageResult(language, confidence)
+let lang = try kit.detectLanguage(text)                 // LanguageResult(language, isReliable, topLanguages)
 
 let model = try kit.loadModel(
     ModelSpec(

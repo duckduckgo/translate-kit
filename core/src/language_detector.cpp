@@ -22,9 +22,9 @@
 namespace translatekit {
 
 DetectedLanguage LanguageDetector::detect(const std::string& text) const {
-    if (text.empty()) return DetectedLanguage{"und", 0.0f};
+    DetectedLanguage result;
+    if (text.empty()) return result;
 
-    bool is_reliable = false;
     CLD2::Language top3[3] = {CLD2::UNKNOWN_LANGUAGE, CLD2::UNKNOWN_LANGUAGE,
                               CLD2::UNKNOWN_LANGUAGE};
     int percent3[3] = {0, 0, 0};
@@ -33,23 +33,15 @@ DetectedLanguage LanguageDetector::detect(const std::string& text) const {
     const CLD2::Language language = CLD2::ExtDetectLanguageSummary(
         text.data(), static_cast<int>(text.size()),
         /*is_plain_text=*/true,
-        top3, percent3, &text_bytes, &is_reliable);
+        top3, percent3, &text_bytes, &result.is_reliable);
 
-    if (language == CLD2::UNKNOWN_LANGUAGE) {
-        return DetectedLanguage{"und", 0.0f};
+    if (language != CLD2::UNKNOWN_LANGUAGE) result.language = CLD2::LanguageCode(language);
+    // CLD2 can list unknown text as one of the three; it isn't a language.
+    for (int i = 0; i < 3; ++i) {
+        if (top3[i] == CLD2::UNKNOWN_LANGUAGE) continue;
+        result.top.push_back({CLD2::LanguageCode(top3[i]), percent3[i]});
     }
-
-    const char* code = CLD2::LanguageCode(language);
-
-    // CLD2 reports the share of the text attributed to the top language plus a
-    // boolean reliability flag (rather than a probability). Map that to a [0,1]
-    // confidence: the byte share, halved when CLD2 deems the call unreliable.
-    float confidence = static_cast<float>(percent3[0]) / 100.0f;
-    if (!is_reliable) confidence *= 0.5f;
-    if (confidence < 0.0f) confidence = 0.0f;
-    if (confidence > 1.0f) confidence = 1.0f;
-
-    return DetectedLanguage{code != nullptr ? code : "und", confidence};
+    return result;
 }
 
 }  // namespace translatekit

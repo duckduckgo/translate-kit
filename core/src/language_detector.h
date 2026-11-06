@@ -18,12 +18,19 @@
 #define TRANSLATE_KIT_LANGUAGE_DETECTOR_H
 
 #include <string>
+#include <vector>
 
 namespace translatekit {
 
+struct LanguageShare {
+    std::string language;  // e.g. "en"
+    int percent = 0;       // share of the scored text, 0-100
+};
+
 struct DetectedLanguage {
-    std::string language;  // ISO-639-1 / BCP-47-ish, e.g. "en"; "und" if unknown
-    float confidence = 0.0f;  // [0, 1]
+    std::string language;      // ISO-639-1 / BCP-47-ish, e.g. "en"; empty if unknown
+    bool is_reliable = false;  // CLD2's own reliability verdict
+    std::vector<LanguageShare> top;  // up to 3, best first; no unknown entries
 };
 
 // Offline language identification backed by the bundled CLD2 detector

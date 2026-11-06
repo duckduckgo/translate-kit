@@ -74,10 +74,18 @@ public final class TranslateKit {
         var result = tk_language_result()
         let status = text.withCString { tk_detect_language(context, $0, &result) }
         try tkCheck(status)
-        let language = withUnsafeBytes(of: result.language) { raw in
-            String(cString: raw.bindMemory(to: CChar.self).baseAddress!)
+        func code<T>(_ chars: T) -> String {
+            withUnsafeBytes(of: chars) { String(cString: $0.bindMemory(to: CChar.self).baseAddress!) }
         }
-        return LanguageResult(language: language, confidence: result.confidence)
+        let language = code(result.language)
+        let top = [result.top.0, result.top.1, result.top.2]
+            .map { LanguageShare(language: code($0.language), percent: Int($0.percent)) }
+            .filter { !$0.language.isEmpty }
+        return LanguageResult(
+            language: language.isEmpty ? nil : language,
+            isReliable: result.is_reliable != 0,
+            topLanguages: top
+        )
     }
 
     /// Loads a translation model from on-disk files. Throws on bad/missing

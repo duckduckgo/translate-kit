@@ -31,10 +31,33 @@ data class TranslationResult(
 /**
  * Result of [TranslateKit.detectLanguage].
  *
- * @param language BCP-47-ish language code, e.g. "en".
- * @param confidence detector confidence in `[0, 1]`.
+ * @param language the detector's overall pick, a BCP-47-ish code such as "en",
+ *   or `null` when undetermined. Usually `topLanguages.first()`, but CLD2 may
+ *   pick differently (it discounts English in mixed text).
+ * @param isReliable CLD2's own reliability verdict. Only act on the result
+ *   (e.g. offer translation) when this is `true`.
+ * @param topLanguages up to three languages found in the text, best first.
  */
 data class LanguageResult(
+    val language: String?,
+    val isReliable: Boolean,
+    val topLanguages: List<LanguageShare>,
+) {
+    // Called from JNI with the C struct's fields; empty codes mark unused slots.
+    internal constructor(language: String, isReliable: Boolean, codes: Array<String>, percents: IntArray) : this(
+        language.ifEmpty { null },
+        isReliable,
+        codes.indices.filter { codes[it].isNotEmpty() }.map { LanguageShare(codes[it], percents[it]) },
+    )
+}
+
+/**
+ * One language found in the text and its share of it.
+ *
+ * @param language BCP-47-ish language code, e.g. "en".
+ * @param percent share of the scored text, `0..100`.
+ */
+data class LanguageShare(
     val language: String,
-    val confidence: Float,
+    val percent: Int,
 )

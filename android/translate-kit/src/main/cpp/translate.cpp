@@ -73,11 +73,28 @@ Java_com_duckduckgo_translatekit_TranslateKit_nativeDetectLanguage(
         return nullptr;
     }
 
+    jclass string_cls = env->FindClass("java/lang/String");
+    jobjectArray codes = env->NewObjectArray(3, string_cls, nullptr);
+    jintArray percents = env->NewIntArray(3);
+    jint percent_values[3];
+    for (jsize i = 0; i < 3; ++i) {
+        jstring code = env->NewStringUTF(result.top[i].language);
+        env->SetObjectArrayElement(codes, i, code);
+        env->DeleteLocalRef(code);
+        percent_values[i] = result.top[i].percent;
+    }
+    env->SetIntArrayRegion(percents, 0, 3, percent_values);
+
     jclass cls = env->FindClass("com/duckduckgo/translatekit/LanguageResult");
-    jmethodID ctor = env->GetMethodID(cls, "<init>", "(Ljava/lang/String;F)V");
+    jmethodID ctor = env->GetMethodID(cls, "<init>",
+                                      "(Ljava/lang/String;Z[Ljava/lang/String;[I)V");
     jstring language = env->NewStringUTF(result.language);
-    jobject obj = env->NewObject(cls, ctor, language, static_cast<jfloat>(result.confidence));
+    jobject obj = env->NewObject(cls, ctor, language,
+                                 static_cast<jboolean>(result.is_reliable != 0), codes, percents);
     env->DeleteLocalRef(language);
+    env->DeleteLocalRef(percents);
+    env->DeleteLocalRef(codes);
+    env->DeleteLocalRef(string_cls);
     env->DeleteLocalRef(cls);
     return obj;
 }

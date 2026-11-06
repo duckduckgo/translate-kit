@@ -83,13 +83,14 @@ TEST(CApi, InitRejectsNullOutArg) {
     EXPECT_EQ(tk_init(nullptr), TK_ERR_INVALID_ARG);
 }
 
-TEST(CApi, DetectLanguageReturnsResult) {
+// Too little text for CLD2 to call: undetermined and not reliable, so the app
+// should not offer translation.
+TEST(CApi, DetectLanguageShortTextIsUndetermined) {
     tk_context* ctx = MakeContext();
     tk_language_result r = {};
     EXPECT_EQ(tk_detect_language(ctx, "hola mundo", &r), TK_OK);
-    EXPECT_STRNE(r.language, "");
-    EXPECT_GE(r.confidence, 0.0f);
-    EXPECT_LE(r.confidence, 1.0f);
+    EXPECT_STREQ(r.language, "");
+    EXPECT_EQ(r.is_reliable, 0);
     tk_shutdown(ctx);
 }
 
@@ -112,8 +113,34 @@ TEST(CApi, DetectLanguageGoldens) {
         tk_language_result r = {};
         ASSERT_EQ(tk_detect_language(ctx, c.text, &r), TK_OK) << c.text;
         EXPECT_STREQ(r.language, c.expected) << "text: " << c.text;
-        EXPECT_GT(r.confidence, 0.0f) << c.text;
+        EXPECT_EQ(r.is_reliable, 1) << c.text;
+        EXPECT_STREQ(r.top[0].language, c.expected) << c.text;
+        EXPECT_GT(r.top[0].percent, 0) << c.text;
     }
+    tk_shutdown(ctx);
+}
+
+// Spanish then English, about half each. CLD2 ranks English first by share but
+// picks Spanish overall (it discounts English in mixed text), so `language`
+// and `top[0]` legitimately differ.
+TEST(CApi, DetectLanguageMixedReportsTopThree) {
+    tk_context* ctx = MakeContext();
+    tk_language_result r = {};
+    ASSERT_EQ(tk_detect_language(ctx,
+                                 "Esta es una frase sencilla escrita en el idioma español para realizar "
+                                 "algunas pruebas. This is a simple sentence written in the English "
+                                 "language for testing purposes.",
+                                 &r),
+              TK_OK);
+    EXPECT_STREQ(r.language, "es");
+    EXPECT_EQ(r.is_reliable, 1);
+    EXPECT_STREQ(r.top[0].language, "en");
+    EXPECT_STREQ(r.top[1].language, "es");
+    EXPECT_GT(r.top[0].percent, 40);
+    EXPECT_GT(r.top[1].percent, 40);
+    EXPECT_LE(r.top[0].percent + r.top[1].percent, 100);
+    EXPECT_STREQ(r.top[2].language, "");
+    EXPECT_EQ(r.top[2].percent, 0);
     tk_shutdown(ctx);
 }
 
@@ -121,8 +148,12 @@ TEST(CApi, DetectLanguageEmptyIsUnknown) {
     tk_context* ctx = MakeContext();
     tk_language_result r = {};
     EXPECT_EQ(tk_detect_language(ctx, "", &r), TK_OK);
-    EXPECT_STREQ(r.language, "und");
-    EXPECT_FLOAT_EQ(r.confidence, 0.0f);
+    EXPECT_STREQ(r.language, "");
+    EXPECT_EQ(r.is_reliable, 0);
+    for (const tk_language_share& s : r.top) {
+        EXPECT_STREQ(s.language, "");
+        EXPECT_EQ(s.percent, 0);
+    }
     tk_shutdown(ctx);
 }
 

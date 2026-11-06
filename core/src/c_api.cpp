@@ -94,8 +94,7 @@ tk_status tk_detect_language(tk_context* ctx,
         set_error("tk_detect_language: out_result is null");
         return TK_ERR_INVALID_ARG;
     }
-    out_result->language[0] = '\0';
-    out_result->confidence = 0.0f;
+    *out_result = tk_language_result{};
     if (ctx == nullptr) {
         set_error("tk_detect_language: context not initialized");
         return TK_ERR_NOT_INITIALIZED;
@@ -108,7 +107,12 @@ tk_status tk_detect_language(tk_context* ctx,
         translatekit::DetectedLanguage d = ctx->detector.detect(std::string(text));
         std::snprintf(out_result->language, sizeof(out_result->language), "%s",
                       d.language.c_str());
-        out_result->confidence = d.confidence;
+        out_result->is_reliable = d.is_reliable ? 1 : 0;
+        for (size_t i = 0; i < d.top.size() && i < 3; ++i) {
+            std::snprintf(out_result->top[i].language, sizeof(out_result->top[i].language), "%s",
+                          d.top[i].language.c_str());
+            out_result->top[i].percent = d.top[i].percent;
+        }
         return TK_OK;
     } catch (const std::exception& e) {
         set_error(e.what());

@@ -72,15 +72,28 @@ class TranslateKitInstrumentedTest {
         for ((text, expected) in cases) {
             val result = TranslateKit.detectLanguage(text)
             assertEquals("detected wrong language for: $text", expected, result.language)
-            assertTrue("confidence should be > 0 for: $text", result.confidence > 0f)
+            assertTrue("should be reliable for: $text", result.isReliable)
+            assertEquals("wrong top language for: $text", expected, result.topLanguages.first().language)
         }
     }
 
     @Test
     fun detectLanguage_emptyIsUnknown() {
         val result = TranslateKit.detectLanguage("")
-        assertEquals("und", result.language)
-        assertEquals(0f, result.confidence, 0f)
+        assertEquals(LanguageResult(language = null, isReliable = false, topLanguages = emptyList()), result)
+    }
+
+    // Mirrors core/test/c_api_test.cpp's mixed case: English leads by share, CLD2 picks Spanish.
+    @Test
+    fun detectLanguage_mixedReportsTopLanguages() {
+        val result = TranslateKit.detectLanguage(
+            "Esta es una frase sencilla escrita en el idioma español para realizar algunas pruebas. " +
+                "This is a simple sentence written in the English language for testing purposes.",
+        )
+        assertEquals("es", result.language)
+        assertTrue(result.isReliable)
+        assertEquals(listOf("en", "es"), result.topLanguages.map { it.language })
+        assertTrue("${result.topLanguages}", result.topLanguages.all { it.percent > 40 })
     }
 
     /* ---- decompression (engine-independent) ------------------------------ */

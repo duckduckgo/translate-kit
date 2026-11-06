@@ -114,7 +114,7 @@ int main(void) {
         tk_shutdown(ctx);
         return 1;
     }
-    printf("detect -> %s (%.3f)\n", lr.language, lr.confidence);
+    printf("detect -> %s (reliable=%d, %d%%)\n", lr.language, lr.is_reliable, lr.top[0].percent);
     if (strcmp(lr.language, "es") != 0) {
         fprintf(stderr, "expected detected language 'es', got '%s'\n", lr.language);
         tk_shutdown(ctx);

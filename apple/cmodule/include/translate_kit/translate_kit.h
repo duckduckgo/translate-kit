@@ -76,11 +76,22 @@ typedef struct tk_model tk_model;
 
 /* ---- Value types -------------------------------------------------------- */
 
-/* Language-detection outcome. `language` is a short BCP-47-ish code
- * (e.g. "en", "es", "zh"); `confidence` is in [0, 1]. */
+/* One of the languages found in the text and its share of the scored text
+ * (0-100). An empty `language` marks an unused slot. */
+typedef struct tk_language_share {
+    char language[16];
+    int percent;
+} tk_language_share;
+
+/* Language-detection outcome. `language` is the detector's overall pick, a
+ * NUL-terminated code (e.g. "en", "es", "zh"), or "" when undetermined.
+ * `is_reliable` is CLD2's own verdict; only act on the result (e.g. offer
+ * translation) when it is non-zero. `top` lists up to three languages, best
+ * first, then empty slots. */
 typedef struct tk_language_result {
     char language[16];
-    float confidence;
+    int is_reliable;
+    tk_language_share top[3];
 } tk_language_result;
 
 /* Translation outcome. `text` is a heap-allocated, NUL-terminated UTF-8 string
