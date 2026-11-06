@@ -29,7 +29,7 @@
 
 cmake_minimum_required(VERSION 3.18.1)
 
-project(translatekit_core LANGUAGES CXX)
+project(translatekit_core LANGUAGES C CXX)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
@@ -81,9 +81,30 @@ target_include_directories(cld2 PUBLIC ${CLD2_DIR}/public ${CLD2_INTERNAL})
 target_compile_options(cld2 PRIVATE -w -Wno-c++11-narrowing -Wno-narrowing)
 set_target_properties(cld2 PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+# ---- zstd: model-file decompression ----------------------------------------
+# BSD-3-Clause. Only the decompressor is built (models arrive as .zst). Legacy
+# formats and the x86_64 assembly fast path are off: one portable C build for
+# every platform.
+set(ZSTD_LIB ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/zstd/lib)
+add_library(zstd_decompress STATIC
+        ${ZSTD_LIB}/common/debug.c
+        ${ZSTD_LIB}/common/entropy_common.c
+        ${ZSTD_LIB}/common/error_private.c
+        ${ZSTD_LIB}/common/fse_decompress.c
+        ${ZSTD_LIB}/common/xxhash.c
+        ${ZSTD_LIB}/common/zstd_common.c
+        ${ZSTD_LIB}/decompress/huf_decompress.c
+        ${ZSTD_LIB}/decompress/zstd_ddict.c
+        ${ZSTD_LIB}/decompress/zstd_decompress.c
+        ${ZSTD_LIB}/decompress/zstd_decompress_block.c)
+target_include_directories(zstd_decompress PUBLIC ${ZSTD_LIB})
+target_compile_definitions(zstd_decompress PRIVATE ZSTD_DISABLE_ASM ZSTD_LEGACY_SUPPORT=0)
+set_target_properties(zstd_decompress PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 # ---- translate-kit core ----------------------------------------------------
 add_library(translatekit_core STATIC
         src/c_api.cpp
+        src/decompress.cpp
         src/language_detector.cpp
         src/translator.cpp)
 
@@ -92,7 +113,7 @@ target_include_directories(translatekit_core
         PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
         PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
-target_link_libraries(translatekit_core PRIVATE cld2)
+target_link_libraries(translatekit_core PRIVATE cld2 zstd_decompress)
 
 # ---- Version ----------------------------------------------------------------
 # Single source of truth is the repo-root VERSION file, the same one

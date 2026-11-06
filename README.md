@@ -47,6 +47,7 @@ C ABI in `core/include/translate_kit/translate_kit.h`. The Android module builds
 ```bash
 # 1. Engine submodules (the inference subset is enough for the build):
 git submodule update --init --checkout --recursive third_party/cld2
+git submodule update --init --checkout third_party/zstd
 git submodule update --init --checkout third_party/translations
 git -C third_party/translations submodule update --init --recursive \
     inference/3rd_party/ssplit-cpp \
@@ -126,7 +127,7 @@ model.close()
 ```
 
 The Swift API mirrors the Android facade 1:1: `TranslateKit` (`init()` / `detectLanguage(_:)` /
-`loadModel(_:)` / `unloadModel(_:)`) and `TranslationModel` (`translate(_:isHtml:)`, a batch overload,
+`loadModel(_:)` / `unloadModel(_:)`, plus the static `decompressZstd(at:to:)`) and `TranslationModel` (`translate(_:isHtml:)`, a batch overload,
 and `close()` — also wired to `deinit`). Language detection (CLD2) needs no model file. All calls are
 **blocking** — invoke them off the main thread (e.g. a background `Task`/`DispatchQueue`); a `TranslateKit`
 and the `TranslationModel`s loaded from it are **not** thread-safe, so serialize access. Deployment
@@ -160,9 +161,16 @@ Both artifacts share one version and are published together by the `Release` wor
 ## Model-file contract
 
 Identical on both wrappers: the library consumes **decompressed** model files (Mozilla ships them
-gzipped; decompression is the caller's job) plus a pre-generated Bergamot config YAML (the config path is
+zstd-compressed; decompress each file once with `decompressZstd`, see below) plus a pre-generated Bergamot config YAML (the config path is
 **nullable** — omit it to fall back to the engine's per-architecture defaults). Nothing is bundled and
 nothing is downloaded — the library only opens the on-disk paths you pass it. See `SPEC-1 §10a`.
+
+`TranslateKit.decompressZstd(zstPath, outPath)` (Kotlin) / `TranslateKit.decompressZstd(at:to:)` (Swift)
+streams one `.zst` to disk. The output only appears once fully decompressed, so a crash or a truncated
+download never leaves a partial model behind. It can't catch every corruption: damaged data in a file
+without a zstd checksum can decode to wrong bytes. Verify each file against a known hash (e.g. a SHA-256
+of the `.zst` before decompressing, or of the output after). The `.zst` is left in place. It is blocking and
+thread-safe, so the model, vocab and shortlist can be decompressed in parallel.
 
 ## License
 

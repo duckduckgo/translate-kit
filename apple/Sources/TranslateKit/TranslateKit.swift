@@ -43,6 +43,18 @@ public final class TranslateKit {
     /// The library version string, e.g. `"0.1.0"`.
     public static var version: String { String(cString: tk_version()) }
 
+    /// Decompresses the zstd file at `zstPath` (e.g. a Mozilla `model.*.bin.zst`)
+    /// to `outPath`, streaming to disk. `outPath` only appears once complete,
+    /// replacing any existing file; `zstPath` is left in place. Throws
+    /// ``TranslateKitError/io(_:)`` on unreadable, non-zstd, truncated or malformed
+    /// input. It can't catch every corruption (files without a zstd checksum can
+    /// decode to wrong bytes), so verify the file against a known hash. Needs no
+    /// instance. Blocking, and safe to call from several threads
+    /// at once.
+    public static func decompressZstd(at zstPath: String, to outPath: String) throws {
+        try tkCheck(tk_decompress_zstd(zstPath, outPath))
+    }
+
     /// Initializes the engine. Throws if native initialization fails. Blocking.
     public init() throws {
         var context: OpaquePointer?

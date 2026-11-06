@@ -35,6 +35,7 @@
 #
 # Prerequisites (one-time, see README):
 #   git submodule update --init --checkout --recursive third_party/cld2
+#   git submodule update --init --checkout third_party/zstd
 #   git submodule update --init --checkout third_party/translations
 #   git -C third_party/translations submodule update --init --recursive \
 #     inference/3rd_party/ssplit-cpp \

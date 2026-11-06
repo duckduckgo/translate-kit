@@ -124,6 +124,14 @@ Java_com_duckduckgo_translatekit_TranslateKit_nativeLoadModel(
     return reinterpret_cast<jlong>(model);
 }
 
+JNIEXPORT jboolean JNICALL
+Java_com_duckduckgo_translatekit_TranslateKit_nativeDecompressZstd(
+        JNIEnv* env, jobject, jstring zst_path, jstring out_path) {
+    const std::string s_zst = ToString(env, zst_path);
+    const std::string s_out = ToString(env, out_path);
+    return tk_decompress_zstd(s_zst.c_str(), s_out.c_str()) == TK_OK ? JNI_TRUE : JNI_FALSE;
+}
+
 /* ---- TranslationModel -------------------------------------------------- */
 
 JNIEXPORT jobject JNICALL

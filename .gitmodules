@@ -12,3 +12,9 @@
 	shallow = true
 	# See the note on third_party/cld2 above.
 	update = none
+[submodule "third_party/zstd"]
+	path = third_party/zstd
+	url = https://github.com/facebook/zstd.git
+	shallow = true
+	# See the note on third_party/cld2 above.
+	update = none

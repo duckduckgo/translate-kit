@@ -23,7 +23,8 @@ public enum TranslateKitError: Error, Equatable {
     case invalidArgument(String)
     /// The engine context was not initialized (`TK_ERR_NOT_INITIALIZED`).
     case notInitialized(String)
-    /// A model/config/vocab file was missing or unreadable (`TK_ERR_IO`).
+    /// A model/config/vocab file was missing or unreadable, or a `.zst` could
+    /// not be decompressed (`TK_ERR_IO`).
     case io(String)
     /// The engine rejected the model/config (`TK_ERR_MODEL_LOAD`).
     case modelLoad(String)

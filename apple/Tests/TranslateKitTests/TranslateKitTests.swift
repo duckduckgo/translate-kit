@@ -95,6 +95,36 @@ final class TranslateKitTests: XCTestCase {
         }
     }
 
+    // MARK: - Decompression (engine-independent)
+
+    func testDecompressZstd() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tk-zstd-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        // "hello model" from the zstd CLI (-19 --check).
+        let zst: [UInt8] = [
+            0x28, 0xb5, 0x2f, 0xfd, 0x04, 0x68, 0x59, 0x00, 0x00, 0x68, 0x65, 0x6c,
+            0x6c, 0x6f, 0x20, 0x6d, 0x6f, 0x64, 0x65, 0x6c, 0x95, 0x9e, 0x11, 0x21,
+        ]
+        let zstURL = dir.appendingPathComponent("model.bin.zst")
+        let outURL = dir.appendingPathComponent("model.bin")
+        try Data(zst).write(to: zstURL)
+
+        try TranslateKit.decompressZstd(at: zstURL.path, to: outURL.path)
+        XCTAssertEqual(try String(contentsOf: outURL, encoding: .utf8), "hello model")
+
+        let badURL = dir.appendingPathComponent("bad.zst")
+        try Data(zst.prefix(zst.count - 4)).write(to: badURL)
+        XCTAssertThrowsError(try TranslateKit.decompressZstd(at: badURL.path, to: outURL.path)) { error in
+            guard case TranslateKitError.io = error else {
+                return XCTFail("expected .io, got \(error)")
+            }
+        }
+        XCTAssertEqual(try String(contentsOf: outURL, encoding: .utf8), "hello model")
+    }
+
     // MARK: - Translation (real tiny en->de model)
 
     func testTranslatePlainText() throws {

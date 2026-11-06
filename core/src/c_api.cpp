@@ -27,6 +27,7 @@
 #include <string>
 #include <vector>
 
+#include "decompress.h"
 #include "language_detector.h"
 #include "translator.h"
 
@@ -207,6 +208,27 @@ tk_status tk_translate(tk_model* model,
     } catch (...) {
         set_error("tk_translate: unknown error");
         return TK_ERR_TRANSLATE;
+    }
+}
+
+tk_status tk_decompress_zstd(const char* zst_path, const char* out_path) {
+    clear_error();
+    if (zst_path == nullptr || zst_path[0] == '\0' || out_path == nullptr || out_path[0] == '\0') {
+        set_error("tk_decompress_zstd: zst_path/out_path is null/empty");
+        return TK_ERR_INVALID_ARG;
+    }
+    try {
+        translatekit::decompress_zstd(zst_path, out_path);
+        return TK_OK;
+    } catch (const std::runtime_error& e) {
+        set_error(e.what());
+        return TK_ERR_IO;
+    } catch (const std::exception& e) {
+        set_error(e.what());
+        return TK_ERR_INTERNAL;
+    } catch (...) {
+        set_error("tk_decompress_zstd: unknown error");
+        return TK_ERR_INTERNAL;
     }
 }
 

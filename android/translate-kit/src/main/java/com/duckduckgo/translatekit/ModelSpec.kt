@@ -19,8 +19,8 @@ package com.duckduckgo.translatekit
 /**
  * Describes one (source -> target) translation model to load.
  *
- * All paths point at **decompressed** files on disk (the caller un-gzips
- * Mozilla's `.gz` artifacts). File-path based so the engine can mmap large
+ * All paths point at **decompressed** files on disk (decompress Mozilla's `.zst`
+ * artifacts with [TranslateKit.decompressZstd]). File-path based so the engine can mmap large
  * models, keeping RSS near the on-disk size and letting callers share pages.
  *
  * @param sourceLang source language code, e.g. "es".

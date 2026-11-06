@@ -19,9 +19,14 @@
 
 #include "translate_kit/translate_kit.h"
 
+#include <algorithm>
+#include <cstdint>
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -316,6 +321,163 @@ TEST(CApi, FreeResultIsIdempotentAndNullSafe) {
     tk_translation_result_free(nullptr);
     tk_model_close(nullptr);
     tk_shutdown(nullptr);
+}
+
+/* ---- tk_decompress_zstd ------------------------------------------------- */
+
+// Builds a zstd frame from raw (uncompressed) blocks, so the test needs no
+// encoder and controls every byte. No content size, no checksum.
+std::string ZstdRaw(const std::string& data) {
+    std::string out = {'\x28', '\xb5', '\x2f', '\xfd',  // magic
+                       '\x00',                          // frame header: no size/checksum/dict
+                       '\x38'};                         // window 2^17 = the max block size
+    size_t pos = 0;
+    do {
+        const size_t len = std::min<size_t>(data.size() - pos, 65536);
+        const uint32_t header = static_cast<uint32_t>(len << 3) | (pos + len == data.size() ? 1u : 0u);
+        for (int i = 0; i < 3; ++i) out.push_back(static_cast<char>((header >> (8 * i)) & 0xFF));
+        out.append(data, pos, len);
+        pos += len;
+    } while (pos < data.size());
+    return out;
+}
+
+// "hello model" from the zstd CLI (-19 --check): a real compressed frame with a
+// content checksum.
+const std::string kZstdHello(
+    "\x28\xb5\x2f\xfd\x04\x68\x59\x00\x00\x68\x65\x6c\x6c\x6f\x20\x6d\x6f\x64\x65\x6c"
+    "\x95\x9e\x11\x21",
+    24);
+
+// Larger than the decompressor's read buffer, so several reads happen.
+std::string Payload() {
+    std::string s;
+    for (int i = 0; i < 300000; ++i) s.push_back(static_cast<char>((i * 7) % 251));
+    return s;
+}
+
+std::filesystem::path ZstdDir(const char* name) {
+    auto dir = std::filesystem::path(::testing::TempDir()) / "tk_zstd" / name;
+    std::filesystem::remove_all(dir);
+    std::filesystem::create_directories(dir);
+    return dir;
+}
+
+void WriteFile(const std::filesystem::path& p, const std::string& bytes) {
+    std::ofstream(p, std::ios::binary) << bytes;
+}
+
+std::string ReadFile(const std::filesystem::path& p) {
+    std::ifstream in(p, std::ios::binary);
+    return {std::istreambuf_iterator<char>(in), {}};
+}
+
+size_t FileCount(const std::filesystem::path& dir) {
+    return static_cast<size_t>(std::distance(std::filesystem::directory_iterator(dir), {}));
+}
+
+TEST(CApi, DecompressZstdWritesOutput) {
+    const auto dir = ZstdDir("ok");
+    WriteFile(dir / "m.bin.zst", ZstdRaw(Payload()));
+    WriteFile(dir / "m.bin", "stale");  // replaced
+
+    ASSERT_EQ(tk_decompress_zstd((dir / "m.bin.zst").c_str(), (dir / "m.bin").c_str()), TK_OK)
+        << tk_last_error();
+    EXPECT_EQ(ReadFile(dir / "m.bin"), Payload());
+    EXPECT_TRUE(std::filesystem::exists(dir / "m.bin.zst"));
+    EXPECT_EQ(FileCount(dir), 2u);  // no temp file left behind
+}
+
+TEST(CApi, DecompressZstdRealFrames) {
+    const auto dir = ZstdDir("real");
+    WriteFile(dir / "h.zst", kZstdHello);
+    ASSERT_EQ(tk_decompress_zstd((dir / "h.zst").c_str(), (dir / "h").c_str()), TK_OK)
+        << tk_last_error();
+    EXPECT_EQ(ReadFile(dir / "h"), "hello model");
+
+    // Concatenated frames decode to the concatenated content; empty content is fine.
+    WriteFile(dir / "multi.zst", kZstdHello + ZstdRaw("") + ZstdRaw("!"));
+    ASSERT_EQ(tk_decompress_zstd((dir / "multi.zst").c_str(), (dir / "multi").c_str()), TK_OK)
+        << tk_last_error();
+    EXPECT_EQ(ReadFile(dir / "multi"), "hello model!");
+}
+
+TEST(CApi, DecompressZstdRejectsBadInput) {
+    const std::string good = ZstdRaw(Payload());
+    std::string bad_block_type = good;
+    bad_block_type[6] |= 0x06;  // first block type 3: reserved
+    std::string bad_checksum = kZstdHello;
+    bad_checksum.back() ^= 0x01;
+
+    const struct {
+        const char* name;
+        std::string bytes;
+    } cases[] = {
+        {"truncated", good.substr(0, good.size() / 2)},
+        {"header only", good.substr(0, 6)},
+        {"missing last block", good.substr(0, 6 + 3 + 65536)},
+        {"reserved block type", bad_block_type},
+        {"bad checksum", bad_checksum},
+        {"missing checksum", kZstdHello.substr(0, kZstdHello.size() - 4)},
+        {"trailing garbage", kZstdHello + "junk"},
+        {"not zstd", "plain model bytes"},
+        {"empty file", ""},
+    };
+    for (const auto& c : cases) {
+        const auto dir = ZstdDir("bad");
+        WriteFile(dir / "in.zst", c.bytes);
+        WriteFile(dir / "out", "previous");
+        EXPECT_EQ(tk_decompress_zstd((dir / "in.zst").c_str(), (dir / "out").c_str()), TK_ERR_IO)
+            << c.name;
+        EXPECT_STRNE(tk_last_error(), "") << c.name;
+        EXPECT_EQ(ReadFile(dir / "out"), "previous") << c.name;  // untouched
+        EXPECT_EQ(FileCount(dir), 2u) << c.name;                  // no temp file left
+    }
+}
+
+TEST(CApi, DecompressZstdRejectsBadArgs) {
+    const auto dir = ZstdDir("args");
+    EXPECT_EQ(tk_decompress_zstd(nullptr, "x"), TK_ERR_INVALID_ARG);
+    EXPECT_EQ(tk_decompress_zstd("x", nullptr), TK_ERR_INVALID_ARG);
+    EXPECT_EQ(tk_decompress_zstd("", "x"), TK_ERR_INVALID_ARG);
+    EXPECT_EQ(tk_decompress_zstd("x", ""), TK_ERR_INVALID_ARG);
+    EXPECT_EQ(tk_decompress_zstd((dir / "missing.zst").c_str(), (dir / "out").c_str()), TK_ERR_IO);
+    EXPECT_EQ(tk_decompress_zstd((dir / "missing.zst").c_str(), (dir / "no" / "out").c_str()),
+              TK_ERR_IO);
+    EXPECT_EQ(FileCount(dir), 0u);
+}
+
+TEST(CApi, DecompressZstdInParallel) {
+    const auto dir = ZstdDir("parallel");
+    const std::string payload = Payload();
+    WriteFile(dir / "in.zst", ZstdRaw(payload));
+    WriteFile(dir / "bad.zst", "not zstd");
+
+    // Half the threads succeed and half fail, so per-thread errors are checked too.
+    constexpr int kThreads = 8;
+    std::vector<tk_status> status(kThreads);
+    std::vector<std::string> error(kThreads);
+    std::vector<std::thread> threads;
+    for (int i = 0; i < kThreads; ++i) {
+        threads.emplace_back([&, i] {
+            const auto in = dir / (i % 2 == 0 ? "in.zst" : "bad.zst");
+            const auto out = dir / ("out" + std::to_string(i));
+            status[i] = tk_decompress_zstd(in.c_str(), out.c_str());
+            error[i] = tk_last_error();
+        });
+    }
+    for (auto& t : threads) t.join();
+    for (int i = 0; i < kThreads; ++i) {
+        if (i % 2 == 0) {
+            EXPECT_EQ(status[i], TK_OK) << i;
+            EXPECT_EQ(error[i], "") << i;
+            EXPECT_EQ(ReadFile(dir / ("out" + std::to_string(i))), payload) << i;
+        } else {
+            EXPECT_EQ(status[i], TK_ERR_IO) << i;
+            EXPECT_NE(error[i].find("bad.zst"), std::string::npos) << i;
+        }
+    }
+    EXPECT_EQ(FileCount(dir), 2u + kThreads / 2);
 }
 
 }  // namespace

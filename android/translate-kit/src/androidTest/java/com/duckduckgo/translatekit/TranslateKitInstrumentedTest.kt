@@ -21,12 +21,14 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.AfterClass
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
+import java.io.IOException
 
 /**
  * On-device validation of the real JNI + native engine path (arm64 ruy/NEON).
@@ -79,6 +81,25 @@ class TranslateKitInstrumentedTest {
         val result = TranslateKit.detectLanguage("")
         assertEquals("und", result.language)
         assertEquals(0f, result.confidence, 0f)
+    }
+
+    /* ---- decompression (engine-independent) ------------------------------ */
+
+    @Test
+    fun decompressZstd_writesOutputAndRejectsTruncated() {
+        val zst = File(context.cacheDir, "tk-test.bin.zst")
+        val out = File(context.cacheDir, "tk-test.bin")
+        zst.writeBytes(ZSTD_HELLO)
+
+        TranslateKit.decompressZstd(zst.absolutePath, out.absolutePath)
+        assertEquals("hello model", out.readText())
+
+        val truncated = File(context.cacheDir, "tk-truncated.bin.zst")
+        truncated.writeBytes(ZSTD_HELLO.copyOf(ZSTD_HELLO.size - 4))
+        assertThrows(IOException::class.java) {
+            TranslateKit.decompressZstd(truncated.absolutePath, out.absolutePath)
+        }
+        assertEquals("hello model", out.readText())
     }
 
     /* ---- translation (real Bergamot engine, en->de tiny model) ------------ */
@@ -163,6 +184,12 @@ class TranslateKitInstrumentedTest {
 
     companion object {
         private const val MODEL_DIR = "test-models/ende.student.tiny11"
+
+        // "hello model" from the zstd CLI (-19 --check).
+        private val ZSTD_HELLO = byteArrayOf(
+            0x28, 0xb5.toByte(), 0x2f, 0xfd.toByte(), 0x04, 0x68, 0x59, 0x00, 0x00, 0x68, 0x65, 0x6c,
+            0x6c, 0x6f, 0x20, 0x6d, 0x6f, 0x64, 0x65, 0x6c, 0x95.toByte(), 0x9e.toByte(), 0x11, 0x21,
+        )
         private val LOCK = Any()
 
         @Volatile

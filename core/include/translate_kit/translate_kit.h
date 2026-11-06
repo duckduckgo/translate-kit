@@ -94,7 +94,7 @@ typedef struct tk_translation_result {
 } tk_translation_result;
 
 /* Inputs needed to load one translation model. All paths are to DECOMPRESSED
- * files on disk (the caller un-gzips Mozilla's `.gz` artifacts). Mirrors
+ * files on disk (decompress Mozilla's `.zst` artifacts with tk_decompress_zstd). Mirrors
  * SPEC-1 section 5 `ModelSpec`. `config_path` points at a pre-generated
  * Bergamot config YAML (produced off-device; SPEC-1 section 10a) and may be
  * null to fall back to the engine's per-architecture defaults. */
@@ -144,6 +144,17 @@ TK_EXPORT tk_status tk_translate(tk_model* model,
                                  const char* input,
                                  int is_html,
                                  tk_translation_result* out_result);
+
+/* Decompress the zstd file at `zst_path` to `out_path`, streaming to disk. The
+ * output goes to a temporary file next to `out_path` and is renamed into place
+ * only once complete, so a failure never leaves a partial `out_path`. Replaces
+ * an existing `out_path`; leaves `zst_path` in place. Needs no context. Returns
+ * TK_ERR_INVALID_ARG on null/empty paths and TK_ERR_IO on unreadable,
+ * non-zstd, truncated or malformed input or a write failure. Damaged data in a
+ * file without a zstd checksum can decode "successfully" to wrong bytes, so
+ * verify the file against a known hash. Blocking; safe to call concurrently
+ * from several threads. */
+TK_EXPORT tk_status tk_decompress_zstd(const char* zst_path, const char* out_path);
 
 /* Release the contents of a translation result (its text + quality buffer).
  * Safe to call with a zero-initialized struct. Does not free `result` itself. */
