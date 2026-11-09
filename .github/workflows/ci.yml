@@ -44,6 +44,7 @@ jobs:
       - name: Init engine submodules
         run: |
           git submodule update --init --checkout --recursive third_party/cld2
+          git submodule update --init --checkout third_party/zstd
           git submodule update --init --checkout third_party/translations
           # The README's set is ARM-only; x86_64 also needs intgemm.
           git -C third_party/translations submodule update --init --recursive \
@@ -59,18 +60,21 @@ jobs:
       - name: Fetch test model
         run: bash scripts/fetch-models.sh
 
-      - name: Install ninja
-        run: sudo apt-get update && sudo apt-get install -y ninja-build
+      # Pinned like the Apple job below: the runner's default CMake is 4.x, which
+      # hard-errors on the engine's vendored cmake_minimum_required < 3.5.
+      - name: Install CMake + Ninja (pinned 3.22.1)
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "cmake;3.22.1"
 
       - name: Configure
         run: >
-          cmake -S core -B core/build-ci -G Ninja
+          "$ANDROID_HOME/cmake/3.22.1/bin/cmake" -S core -B core/build-ci -G Ninja
+          -DCMAKE_MAKE_PROGRAM="$ANDROID_HOME/cmake/3.22.1/bin/ninja"
           -DTRANSLATEKIT_BUILD_TESTS=ON
           -DTRANSLATEKIT_WITH_ENGINE=ON
           -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
-        run: cmake --build core/build-ci -j
+        run: '"$ANDROID_HOME/cmake/3.22.1/bin/cmake" --build core/build-ci -j'
 
       - name: Test (with real tiny en->de model)
         run: |
@@ -86,6 +90,7 @@ jobs:
       - name: Init engine submodules
         run: |
           git submodule update --init --checkout --recursive third_party/cld2
+          git submodule update --init --checkout third_party/zstd
           git submodule update --init --checkout third_party/translations
           git -C third_party/translations submodule update --init --recursive \
             inference/3rd_party/ssplit-cpp \
@@ -142,6 +147,7 @@ jobs:
       - name: Init engine submodules
         run: |
           git submodule update --init --checkout --recursive third_party/cld2
+          git submodule update --init --checkout third_party/zstd
           git submodule update --init --checkout third_party/translations
           git -C third_party/translations submodule update --init --recursive \
             inference/3rd_party/ssplit-cpp \

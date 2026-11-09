@@ -16,6 +16,12 @@
 
 import CTranslateKit
 
+#if canImport(Glibc)
+import Glibc
+#else
+import Darwin
+#endif
+
 /// A loaded (source -> target) translation model. Obtain one via
 /// ``TranslateKit/loadModel(_:)``; it owns mmap'd native memory and must be
 /// released with ``close()`` (also wired to `deinit` as a backstop), mirroring
@@ -50,18 +56,39 @@ public final class TranslationModel {
         // Free the engine-owned buffers on every path; safe on a zeroed struct.
         defer { tk_translation_result_free(&result) }
         try tkCheck(status)
+        return Self.convert(result)
+    }
 
+    /// Translates all `inputs` in one engine call, which is faster than one call
+    /// each. A sentence's output can differ slightly from the single-input
+    /// overload's, because the engine's output-vocabulary shortlist is shared
+    /// across the batch. Throws if any input fails, returning no results.
+    /// Blocking.
+    public func translate(_ inputs: [String], isHtml: Bool) throws -> [TranslationResult] {
+        guard let handle else {
+            throw TranslateKitError.notInitialized("TranslationModel has been closed")
+        }
+        // Own a C copy of every input for the duration of the call.
+        let copies = inputs.map { strdup($0)! }
+        defer { copies.forEach { free($0) } }
+        let pointers: [UnsafePointer<CChar>?] = copies.map { UnsafePointer($0) }
+
+        var results = [tk_translation_result](repeating: tk_translation_result(), count: inputs.count)
+        let status = pointers.withUnsafeBufferPointer {
+            tk_translate_batch(handle, $0.baseAddress, inputs.count, Int32(isHtml ? 1 : 0), &results)
+        }
+        defer { for i in results.indices { tk_translation_result_free(&results[i]) } }
+        try tkCheck(status)
+        return results.map(Self.convert)
+    }
+
+    private static func convert(_ result: tk_translation_result) -> TranslationResult {
         let text = result.text.map { String(cString: $0) } ?? ""
         var qualityScores: [Float]?
         if let scores = result.quality_scores, result.quality_len > 0 {
             qualityScores = Array(UnsafeBufferPointer(start: scores, count: result.quality_len))
         }
         return TranslationResult(text: text, qualityScores: qualityScores)
-    }
-
-    /// Batch overload. Blocking.
-    public func translate(_ inputs: [String], isHtml: Bool) throws -> [TranslationResult] {
-        try inputs.map { try translate($0, isHtml: isHtml) }
     }
 
     /// Releases native memory. Idempotent.

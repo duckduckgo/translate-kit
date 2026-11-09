@@ -39,6 +39,7 @@ Apache-2.0 and MPL-2.0 texts are referenced where they already exist in-tree.
 | mio | Memory-mapped file I/O | MIT | https://github.com/mandreyel/mio contributors | `.../marian-fork/src/3rd_party/mio/LICENSE` |
 | phf | Perfect-hash function | MIT | William Ahern | `.../marian-fork/src/3rd_party/phf/LICENSE` |
 | CLD2 (Compact Language Detector 2) | Offline language detection | Apache-2.0 | Google Inc. | [`third_party/cld2/LICENSE`](third_party/cld2/LICENSE) |
+| Zstandard (zstd) 1.5.7, decompressor only | Model-file decompression | BSD-3-Clause (dual-licensed BSD-3-Clause / GPL-2.0; used under BSD) | Meta Platforms, Inc. and affiliates | [`third_party/zstd/LICENSE`](third_party/zstd/LICENSE) |
 
 > Paths abbreviated `.../marian-fork/...` are rooted at
 > `third_party/translations/inference/marian-fork/...`.
@@ -132,7 +133,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ### BSD-3-Clause
 
-Applies to CLI11, half_float, and PCRE2 (the PCRE2 Licence) (copyright holders per
+Applies to CLI11, half_float, Zstandard, and PCRE2 (the PCRE2 Licence) (copyright holders per
 the table above). Same terms as BSD-2-Clause, plus:
 
 ```

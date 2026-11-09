@@ -126,22 +126,26 @@ Translator::~Translator() {
 }
 
 TranslationResult Translator::translate(const std::string& input, bool is_html) const {
+    return translate_batch({input}, is_html).front();
+}
+
+std::vector<TranslationResult> Translator::translate_batch(const std::vector<std::string>& inputs,
+                                                           bool is_html) const {
     mb::ResponseOptions options;
     options.HTML = is_html;
     // HTML restore (detag-and-project) projects tags onto the target via word
     // alignments, so request them whenever translating HTML.
     options.alignment = is_html;
 
-    std::vector<std::string> sources{input};
-    std::vector<mb::ResponseOptions> perInput{options};
+    std::vector<mb::ResponseOptions> perInput(inputs.size(), options);
     std::vector<mb::Response> responses =
-        impl_->service.translateMultiple(impl_->model, std::move(sources), perInput);
+        impl_->service.translateMultiple(impl_->model, std::vector<std::string>(inputs), perInput);
 
-    TranslationResult result;
-    if (!responses.empty()) {
-        result.text = responses.front().target.text;
+    std::vector<TranslationResult> results(inputs.size());
+    for (size_t i = 0; i < results.size() && i < responses.size(); ++i) {
+        results[i].text = responses[i].target.text;
     }
-    return result;
+    return results;
 }
 
 }  // namespace translatekit
@@ -163,10 +167,15 @@ Translator::~Translator() {
     delete impl_;
 }
 
-TranslationResult Translator::translate(const std::string& input, bool /*is_html*/) const {
-    TranslationResult result;
-    result.text = input;  // echo
-    return result;
+TranslationResult Translator::translate(const std::string& input, bool is_html) const {
+    return translate_batch({input}, is_html).front();
+}
+
+std::vector<TranslationResult> Translator::translate_batch(const std::vector<std::string>& inputs,
+                                                           bool /*is_html*/) const {
+    std::vector<TranslationResult> results(inputs.size());
+    for (size_t i = 0; i < inputs.size(); ++i) results[i].text = inputs[i];  // echo
+    return results;
 }
 
 }  // namespace translatekit

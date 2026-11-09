@@ -47,6 +47,7 @@ C ABI in `core/include/translate_kit/translate_kit.h`. The Android module builds
 ```bash
 # 1. Engine submodules (the inference subset is enough for the build):
 git submodule update --init --checkout --recursive third_party/cld2
+git submodule update --init --checkout third_party/zstd
 git submodule update --init --checkout third_party/translations
 git -C third_party/translations submodule update --init --recursive \
     inference/3rd_party/ssplit-cpp \
@@ -81,7 +82,7 @@ scripts/build-apple.sh macos-arm64 iossim-arm64   # or a subset; the XCFramework
 ```kotlin
 TranslateKit.init(context)                 // loads the native library + inits the engine. Idempotent. Blocking.
 
-val lang = TranslateKit.detectLanguage(text)            // LanguageResult(language, confidence)
+val lang = TranslateKit.detectLanguage(text)            // LanguageResult(language, isReliable, topLanguages)
 
 val model = TranslateKit.loadModel(
     ModelSpec(
@@ -98,8 +99,14 @@ model.close()
 ```
 
 All native calls are **blocking** — call them off the main thread (e.g. a coroutine on an IO dispatcher).
+`detectLanguage` returns CLD2's overall pick (`language`, `null` when undetermined), its own `isReliable`
+verdict, and up to three `topLanguages` with their percentage of the text. Only offer translation when
+`isReliable` is true.
 `translate(input, isHtml = true)` preserves inline HTML tags via the engine's alignment-based
-detag-and-project. The library is single-hop per loaded model; non-English↔non-English pairs are pivoted
+detag-and-project. `translate(inputs: List<String>, isHtml)` translates a whole list in one engine call, about
+2× faster than one call per input. A sentence's output can differ slightly from a single call's, because
+the engine's output-vocabulary shortlist is shared across the batch (in testing, usually closer to the
+model's unrestricted output). The library is single-hop per loaded model; non-English↔non-English pairs are pivoted
 through English by the caller.
 
 ## Apple usage (Swift)
@@ -109,7 +116,7 @@ import TranslateKit
 
 let kit = try TranslateKit()                            // inits the engine. Blocking.
 
-let lang = try kit.detectLanguage(text)                 // LanguageResult(language, confidence)
+let lang = try kit.detectLanguage(text)                 // LanguageResult(language, isReliable, topLanguages)
 
 let model = try kit.loadModel(
     ModelSpec(
@@ -126,7 +133,7 @@ model.close()
 ```
 
 The Swift API mirrors the Android facade 1:1: `TranslateKit` (`init()` / `detectLanguage(_:)` /
-`loadModel(_:)` / `unloadModel(_:)`) and `TranslationModel` (`translate(_:isHtml:)`, a batch overload,
+`loadModel(_:)` / `unloadModel(_:)`, plus the static `decompressZstd(at:to:)`) and `TranslationModel` (`translate(_:isHtml:)`, a batch overload,
 and `close()` — also wired to `deinit`). Language detection (CLD2) needs no model file. All calls are
 **blocking** — invoke them off the main thread (e.g. a background `Task`/`DispatchQueue`); a `TranslateKit`
 and the `TranslationModel`s loaded from it are **not** thread-safe, so serialize access. Deployment
@@ -160,9 +167,17 @@ Both artifacts share one version and are published together by the `Release` wor
 ## Model-file contract
 
 Identical on both wrappers: the library consumes **decompressed** model files (Mozilla ships them
-gzipped; decompression is the caller's job) plus a pre-generated Bergamot config YAML (the config path is
+zstd-compressed; decompress each file once with `decompressZstd`, see below) plus a pre-generated Bergamot config YAML (the config path is
 **nullable** — omit it to fall back to the engine's per-architecture defaults). Nothing is bundled and
 nothing is downloaded — the library only opens the on-disk paths you pass it. See `SPEC-1 §10a`.
+
+`TranslateKit.decompressZstd(zstPath, outPath)` (Kotlin) / `TranslateKit.decompressZstd(at:to:)` (Swift)
+streams one `.zst` to disk. The output is synced to disk and only appears once fully decompressed, so a
+crash, power loss or truncated download never leaves a partial model behind. A process killed mid-way can
+leave a `<outPath>.tmp-XXXXXX` file next to the output; it is safe to delete. It can't catch every corruption: damaged data in a file
+without a zstd checksum can decode to wrong bytes. Verify each file against a known hash (e.g. a SHA-256
+of the `.zst` before decompressing, or of the output after). The `.zst` is left in place. It is blocking and
+thread-safe, so the model, vocab and shortlist can be decompressed in parallel.
 
 ## License
 

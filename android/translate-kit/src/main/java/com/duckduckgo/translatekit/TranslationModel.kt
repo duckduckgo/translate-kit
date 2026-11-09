@@ -40,9 +40,18 @@ class TranslationModel internal constructor(nativePointer: Long) {
         return nativeTranslate(ptr, input, isHtml)
     }
 
-    /** Batch overload. Blocking. */
-    fun translate(inputs: List<String>, isHtml: Boolean): List<TranslationResult> =
-        inputs.map { translate(it, isHtml) }
+    /**
+     * Translate all [inputs] in one engine call, which is faster than one call
+     * each. A sentence's output can differ slightly from the single-input
+     * overload's, because the engine's output-vocabulary shortlist is shared
+     * across the batch. Throws if any input fails, returning no results.
+     * Blocking.
+     */
+    fun translate(inputs: List<String>, isHtml: Boolean): List<TranslationResult> {
+        val ptr = nativePointer
+        check(ptr != 0L) { "TranslationModel has been closed" }
+        return nativeTranslateBatch(ptr, inputs.toTypedArray(), isHtml).asList()
+    }
 
     /** Releases native memory. Idempotent. */
     @Synchronized
@@ -64,6 +73,12 @@ class TranslationModel internal constructor(nativePointer: Long) {
         input: String,
         isHtml: Boolean,
     ): TranslationResult
+
+    private external fun nativeTranslateBatch(
+        nativePointer: Long,
+        inputs: Array<String>,
+        isHtml: Boolean,
+    ): Array<TranslationResult>
 
     private external fun nativeClose(nativePointer: Long)
 }

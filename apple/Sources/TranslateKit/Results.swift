@@ -30,13 +30,32 @@ public struct TranslationResult: Equatable {
 
 /// Result of ``TranslateKit/detectLanguage(_:)``.
 public struct LanguageResult: Equatable {
-    /// BCP-47-ish language code, e.g. `"en"` (or `"und"` when undetermined).
-    public let language: String
-    /// Detector confidence in `[0, 1]`.
-    public let confidence: Float
+    /// The detector's overall pick, a BCP-47-ish code such as `"en"`, or `nil`
+    /// when undetermined. Usually `topLanguages.first`, but CLD2 may pick
+    /// differently (it discounts English in mixed text).
+    public let language: String?
+    /// CLD2's own reliability verdict. Only act on the result (e.g. offer
+    /// translation) when this is `true`.
+    public let isReliable: Bool
+    /// Up to three languages found in the text, best first.
+    public let topLanguages: [LanguageShare]
 
-    public init(language: String, confidence: Float) {
+    public init(language: String?, isReliable: Bool, topLanguages: [LanguageShare]) {
         self.language = language
-        self.confidence = confidence
+        self.isReliable = isReliable
+        self.topLanguages = topLanguages
+    }
+}
+
+/// One language found in the text and its share of it.
+public struct LanguageShare: Equatable {
+    /// BCP-47-ish language code, e.g. `"en"`.
+    public let language: String
+    /// Share of the scored text, `0...100`.
+    public let percent: Int
+
+    public init(language: String, percent: Int) {
+        self.language = language
+        self.percent = percent
     }
 }

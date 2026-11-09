@@ -43,6 +43,18 @@ public final class TranslateKit {
     /// The library version string, e.g. `"0.1.0"`.
     public static var version: String { String(cString: tk_version()) }
 
+    /// Decompresses the zstd file at `zstPath` (e.g. a Mozilla `model.*.bin.zst`)
+    /// to `outPath`, streaming to disk. `outPath` only appears once complete,
+    /// replacing any existing file; `zstPath` is left in place. Throws
+    /// ``TranslateKitError/io(_:)`` on unreadable, non-zstd, truncated or malformed
+    /// input. It can't catch every corruption (files without a zstd checksum can
+    /// decode to wrong bytes), so verify the file against a known hash. Needs no
+    /// instance. Blocking, and safe to call from several threads
+    /// at once.
+    public static func decompressZstd(at zstPath: String, to outPath: String) throws {
+        try tkCheck(tk_decompress_zstd(zstPath, outPath))
+    }
+
     /// Initializes the engine. Throws if native initialization fails. Blocking.
     public init() throws {
         var context: OpaquePointer?
@@ -62,10 +74,18 @@ public final class TranslateKit {
         var result = tk_language_result()
         let status = text.withCString { tk_detect_language(context, $0, &result) }
         try tkCheck(status)
-        let language = withUnsafeBytes(of: result.language) { raw in
-            String(cString: raw.bindMemory(to: CChar.self).baseAddress!)
+        func code<T>(_ chars: T) -> String {
+            withUnsafeBytes(of: chars) { String(cString: $0.bindMemory(to: CChar.self).baseAddress!) }
         }
-        return LanguageResult(language: language, confidence: result.confidence)
+        let language = code(result.language)
+        let top = [result.top.0, result.top.1, result.top.2]
+            .map { LanguageShare(language: code($0.language), percent: Int($0.percent)) }
+            .filter { !$0.language.isEmpty }
+        return LanguageResult(
+            language: language.isEmpty ? nil : language,
+            isReliable: result.is_reliable != 0,
+            topLanguages: top
+        )
     }
 
     /// Loads a translation model from on-disk files. Throws on bad/missing

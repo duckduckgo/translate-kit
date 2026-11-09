@@ -21,12 +21,14 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.AfterClass
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
+import java.io.IOException
 
 /**
  * On-device validation of the real JNI + native engine path (arm64 ruy/NEON).
@@ -70,15 +72,47 @@ class TranslateKitInstrumentedTest {
         for ((text, expected) in cases) {
             val result = TranslateKit.detectLanguage(text)
             assertEquals("detected wrong language for: $text", expected, result.language)
-            assertTrue("confidence should be > 0 for: $text", result.confidence > 0f)
+            assertTrue("should be reliable for: $text", result.isReliable)
+            assertEquals("wrong top language for: $text", expected, result.topLanguages.first().language)
         }
     }
 
     @Test
     fun detectLanguage_emptyIsUnknown() {
         val result = TranslateKit.detectLanguage("")
-        assertEquals("und", result.language)
-        assertEquals(0f, result.confidence, 0f)
+        assertEquals(LanguageResult(language = null, isReliable = false, topLanguages = emptyList()), result)
+    }
+
+    // Mirrors core/test/c_api_test.cpp's mixed case: English leads by share, CLD2 picks Spanish.
+    @Test
+    fun detectLanguage_mixedReportsTopLanguages() {
+        val result = TranslateKit.detectLanguage(
+            "Esta es una frase sencilla escrita en el idioma español para realizar algunas pruebas. " +
+                "This is a simple sentence written in the English language for testing purposes.",
+        )
+        assertEquals("es", result.language)
+        assertTrue(result.isReliable)
+        assertEquals(listOf("en", "es"), result.topLanguages.map { it.language })
+        assertTrue("${result.topLanguages}", result.topLanguages.all { it.percent > 40 })
+    }
+
+    /* ---- decompression (engine-independent) ------------------------------ */
+
+    @Test
+    fun decompressZstd_writesOutputAndRejectsTruncated() {
+        val zst = File(context.cacheDir, "tk-test.bin.zst")
+        val out = File(context.cacheDir, "tk-test.bin")
+        zst.writeBytes(ZSTD_HELLO)
+
+        TranslateKit.decompressZstd(zst.absolutePath, out.absolutePath)
+        assertEquals("hello model", out.readText())
+
+        val truncated = File(context.cacheDir, "tk-truncated.bin.zst")
+        truncated.writeBytes(ZSTD_HELLO.copyOf(ZSTD_HELLO.size - 4))
+        assertThrows(IOException::class.java) {
+            TranslateKit.decompressZstd(truncated.absolutePath, out.absolutePath)
+        }
+        assertEquals("hello model", out.readText())
     }
 
     /* ---- translation (real Bergamot engine, en->de tiny model) ------------ */
@@ -110,6 +144,22 @@ class TranslateKitInstrumentedTest {
                 failures.joinToString("\n"),
             failures.isEmpty(),
         )
+    }
+
+    // Mirrors core/test/c_api_test.cpp's batch case: one engine call for all the
+    // HTML cases. Outputs may differ slightly from single calls (shared
+    // shortlist), so only the structural invariants are checked.
+    @Test
+    fun translateHtml_batchKeepsStructure() {
+        val model = enDeModelOrSkip()
+        val outputs = model.translate(HTML_CASES.map { it.input }, isHtml = true).map { it.text }
+        assertEquals(HTML_CASES.size, outputs.size)
+        val failures = HTML_CASES.zip(outputs).mapNotNull { (case, out) ->
+            val missing = case.mustContain.filterNot { out.contains(it) }
+            if (missing.isEmpty()) null else "input=${case.input}\n  output:  $out\n  missing: $missing"
+        }
+        assertTrue("batch failures:\n" + failures.joinToString("\n"), failures.isEmpty())
+        assertEquals(emptyList<TranslationResult>(), model.translate(emptyList(), isHtml = false))
     }
 
     private fun enDeModelOrSkip(): TranslationModel {
@@ -163,6 +213,12 @@ class TranslateKitInstrumentedTest {
 
     companion object {
         private const val MODEL_DIR = "test-models/ende.student.tiny11"
+
+        // "hello model" from the zstd CLI (-19 --check).
+        private val ZSTD_HELLO = byteArrayOf(
+            0x28, 0xb5.toByte(), 0x2f, 0xfd.toByte(), 0x04, 0x68, 0x59, 0x00, 0x00, 0x68, 0x65, 0x6c,
+            0x6c, 0x6f, 0x20, 0x6d, 0x6f, 0x64, 0x65, 0x6c, 0x95.toByte(), 0x9e.toByte(), 0x11, 0x21,
+        )
         private val LOCK = Any()
 
         @Volatile

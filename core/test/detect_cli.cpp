@@ -16,7 +16,7 @@
 
 // Tiny host dev tool for manual language-detection testing through the C ABI.
 // Reads text from argv (joined) or, if none given, from stdin, and prints the
-// detected language + confidence.
+// detected language, reliability and top three languages.
 //
 //   echo "Bonjour le monde, comment allez-vous" | ./build/test/detect_cli
 //   ./build/test/detect_cli "Hola, esto es una prueba de deteccion"
@@ -55,7 +55,11 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    std::printf("language=%s confidence=%.2f\n", result.language, result.confidence);
+    std::printf("language=%s reliable=%d", result.language, result.is_reliable);
+    for (const tk_language_share& s : result.top) {
+        if (s.language[0] != '\0') std::printf(" %s:%d%%", s.language, s.percent);
+    }
+    std::printf("\n");
     tk_shutdown(ctx);
     return 0;
 }

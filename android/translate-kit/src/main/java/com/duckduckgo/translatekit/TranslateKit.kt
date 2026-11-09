@@ -18,6 +18,7 @@ package com.duckduckgo.translatekit
 
 import android.content.Context
 import android.util.Log
+import java.io.IOException
 
 /**
  * Entry point to translate-kit: on-device neural machine translation + offline
@@ -110,6 +111,21 @@ object TranslateKit {
         return TranslationModel(modelPtr)
     }
 
+    /**
+     * Decompresses the zstd file at [zstPath] (e.g. a Mozilla `model.*.bin.zst`)
+     * to [outPath], streaming to disk. [outPath] only appears once complete,
+     * replacing any existing file; [zstPath] is left in place. Throws
+     * [IOException] on unreadable, non-zstd, truncated or malformed input. It
+     * can't catch every corruption (files without a zstd checksum can decode to
+     * wrong bytes), so verify the file against a known hash. Blocking, and safe to call from several threads at once.
+     */
+    fun decompressZstd(zstPath: String, outPath: String) {
+        check(isInitialized()) { "TranslateKit.init(context) must be called before decompressZstd" }
+        if (!nativeDecompressZstd(zstPath, outPath)) {
+            throw IOException("translate-kit decompressZstd failed: ${nativeLastError()}")
+        }
+    }
+
     /** Releases a loaded model. Equivalent to [TranslationModel.close]. */
     fun unloadModel(model: TranslationModel) {
         model.close()
@@ -129,6 +145,8 @@ object TranslateKit {
         configPath: String?,
         numWorkers: Int,
     ): Long
+
+    private external fun nativeDecompressZstd(zstPath: String, outPath: String): Boolean
 
     private external fun nativeLastError(): String
 }

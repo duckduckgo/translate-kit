@@ -76,11 +76,22 @@ typedef struct tk_model tk_model;
 
 /* ---- Value types -------------------------------------------------------- */
 
-/* Language-detection outcome. `language` is a short BCP-47-ish code
- * (e.g. "en", "es", "zh"); `confidence` is in [0, 1]. */
+/* One of the languages found in the text and its share of the scored text
+ * (0-100). An empty `language` marks an unused slot. */
+typedef struct tk_language_share {
+    char language[16];
+    int percent;
+} tk_language_share;
+
+/* Language-detection outcome. `language` is the detector's overall pick, a
+ * NUL-terminated code (e.g. "en", "es", "zh"), or "" when undetermined.
+ * `is_reliable` is CLD2's own verdict; only act on the result (e.g. offer
+ * translation) when it is non-zero. `top` lists up to three languages, best
+ * first, then empty slots. */
 typedef struct tk_language_result {
     char language[16];
-    float confidence;
+    int is_reliable;
+    tk_language_share top[3];
 } tk_language_result;
 
 /* Translation outcome. `text` is a heap-allocated, NUL-terminated UTF-8 string
@@ -94,7 +105,7 @@ typedef struct tk_translation_result {
 } tk_translation_result;
 
 /* Inputs needed to load one translation model. All paths are to DECOMPRESSED
- * files on disk (the caller un-gzips Mozilla's `.gz` artifacts). Mirrors
+ * files on disk (decompress Mozilla's `.zst` artifacts with tk_decompress_zstd). Mirrors
  * SPEC-1 section 5 `ModelSpec`. `config_path` points at a pre-generated
  * Bergamot config YAML (produced off-device; SPEC-1 section 10a) and may be
  * null to fall back to the engine's per-architecture defaults. */
@@ -144,6 +155,31 @@ TK_EXPORT tk_status tk_translate(tk_model* model,
                                  const char* input,
                                  int is_html,
                                  tk_translation_result* out_result);
+
+/* Decompress the zstd file at `zst_path` to `out_path`, streaming to disk. The
+ * output goes to a temporary file next to `out_path`, synced to disk, and
+ * renamed into place only once complete, so a failure or power loss never
+ * leaves a partial `out_path`. A killed process can leave a
+ * `<out_path>.tmp-XXXXXX` sibling behind; callers may delete those. Replaces
+ * an existing `out_path`; leaves `zst_path` in place. Needs no context. Returns
+ * TK_ERR_INVALID_ARG on null/empty paths and TK_ERR_IO on unreadable,
+ * non-zstd, truncated or malformed input or a write failure. Damaged data in a
+ * file without a zstd checksum can decode "successfully" to wrong bytes, so
+ * verify the file against a known hash. Blocking; safe to call concurrently
+ * from several threads. */
+TK_EXPORT tk_status tk_decompress_zstd(const char* zst_path, const char* out_path);
+
+/* Translate `count` inputs in one engine call: all plain text, or all HTML
+ * fragments when is_html != 0. Faster than calling tk_translate per input. A
+ * sentence's output can differ slightly from tk_translate's, because the
+ * engine's output-vocabulary shortlist is shared across the batch. On success
+ * fills out_results[0..count); free each with tk_translation_result_free. On
+ * failure every result is left zeroed. Blocking. */
+TK_EXPORT tk_status tk_translate_batch(tk_model* model,
+                                       const char* const* inputs,
+                                       size_t count,
+                                       int is_html,
+                                       tk_translation_result* out_results);
 
 /* Release the contents of a translation result (its text + quality buffer).
  * Safe to call with a zero-initialized struct. Does not free `result` itself. */
