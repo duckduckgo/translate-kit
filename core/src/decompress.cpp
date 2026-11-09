@@ -16,7 +16,6 @@
 
 #include "decompress.h"
 
-#include <atomic>
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
@@ -25,14 +24,15 @@
 #include <stdexcept>
 #include <vector>
 
+#include <fcntl.h>
+#include <unistd.h>
+
 #include <zstd.h>
 #include <zstd_errors.h>
 
 namespace translatekit {
 
 namespace {
-
-std::atomic<unsigned long> g_temp_counter{0};
 
 [[noreturn]] void fail(const std::string& what, const std::string& path) {
     throw std::runtime_error("decompress_zstd: " + what + ": " + path);
@@ -50,6 +50,29 @@ using File = std::unique_ptr<std::FILE, FileCloser>;
 struct DCtxFreer {
     void operator()(ZSTD_DCtx* d) const { ZSTD_freeDCtx(d); }
 };
+
+// Flushes fd's data to stable storage. Plain fsync on Apple only reaches the
+// drive's cache; F_FULLFSYNC reaches the media.
+bool sync_fd(int fd) {
+#ifdef __APPLE__
+    if (fcntl(fd, F_FULLFSYNC) == 0) return true;
+    // Some filesystems don't support F_FULLFSYNC; fall back to fsync.
+#endif
+    return fsync(fd) == 0;
+}
+
+// Makes the rename of a file inside `path`'s directory durable.
+void sync_parent_dir(const std::string& path) {
+    const size_t slash = path.find_last_of('/');
+    const std::string dir = slash == std::string::npos ? "." : slash == 0 ? "/" : path.substr(0, slash);
+    const int fd = open(dir.c_str(), O_RDONLY);
+    if (fd < 0) fail_errno("cannot open directory to sync", dir);
+    const bool ok = sync_fd(fd);
+    const int saved = errno;
+    close(fd);
+    errno = saved;
+    if (!ok) fail_errno("sync failed", dir);
+}
 
 // Decodes zst_path into the already-open `out`. Throws on any error.
 void decompress_to(const std::string& zst_path, std::FILE* out, const std::string& out_name) {
@@ -89,14 +112,24 @@ void decompress_to(const std::string& zst_path, std::FILE* out, const std::strin
 }  // namespace
 
 void decompress_zstd(const std::string& zst_path, const std::string& out_path) {
-    // shortcut: unique per process only; two processes writing the same
-    // out_path at once could share a temp name. Fine for one app process.
-    const std::string temp_path = out_path + ".tmp-" + std::to_string(++g_temp_counter);
-
-    std::FILE* out = std::fopen(temp_path.c_str(), "wb");
-    if (out == nullptr) fail_errno("cannot create", temp_path);
+    // Unique across processes and restarts: mkstemp creates the file exclusively.
+    std::string temp_path = out_path + ".tmp-XXXXXX";
+    const int fd = mkstemp(&temp_path[0]);
+    if (fd < 0) fail_errno("cannot create", temp_path);
+    std::FILE* out = fdopen(fd, "wb");
+    if (out == nullptr) {
+        const int saved = errno;
+        close(fd);
+        std::remove(temp_path.c_str());
+        errno = saved;
+        fail_errno("cannot create", temp_path);
+    }
     try {
         decompress_to(zst_path, out, out_path);
+        // The data must be on disk before the rename is, or a power loss can
+        // leave an empty or partial file at out_path.
+        if (std::fflush(out) != 0) fail_errno("write failed", out_path);
+        if (!sync_fd(fileno(out))) fail_errno("sync failed", out_path);
     } catch (...) {
         std::fclose(out);
         std::remove(temp_path.c_str());
@@ -114,6 +147,7 @@ void decompress_zstd(const std::string& zst_path, const std::string& out_path) {
         errno = saved;
         fail_errno("cannot rename into place", out_path);
     }
+    sync_parent_dir(out_path);
 }
 
 }  // namespace translatekit

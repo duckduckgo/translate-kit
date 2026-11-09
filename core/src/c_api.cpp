@@ -239,16 +239,18 @@ tk_status tk_translate_batch(tk_model* model,
         set_error("tk_translate_batch: inputs is null");
         return TK_ERR_INVALID_ARG;
     }
-    std::vector<std::string> sources;
-    sources.reserve(count);
-    for (size_t i = 0; i < count; ++i) {
-        if (inputs[i] == nullptr) {
-            set_error(("tk_translate_batch: inputs[" + std::to_string(i) + "] is null").c_str());
-            return TK_ERR_INVALID_ARG;
-        }
-        sources.emplace_back(inputs[i]);
-    }
+    // Copying the inputs allocates, so it stays inside the try: no exception may
+    // escape an extern "C" function.
     try {
+        std::vector<std::string> sources;
+        sources.reserve(count);
+        for (size_t i = 0; i < count; ++i) {
+            if (inputs[i] == nullptr) {
+                set_error(("tk_translate_batch: inputs[" + std::to_string(i) + "] is null").c_str());
+                return TK_ERR_INVALID_ARG;
+            }
+            sources.emplace_back(inputs[i]);
+        }
         const std::vector<translatekit::TranslationResult> results =
             model->translator.translate_batch(sources, is_html != 0);
         for (size_t i = 0; i < count; ++i) {
@@ -259,6 +261,9 @@ tk_status tk_translate_batch(tk_model* model,
             }
         }
         return TK_OK;
+    } catch (const std::bad_alloc&) {
+        set_error("tk_translate_batch: out of memory");
+        return TK_ERR_INTERNAL;
     } catch (const std::exception& e) {
         set_error(e.what());
         return TK_ERR_TRANSLATE;

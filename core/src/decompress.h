@@ -23,7 +23,9 @@ namespace translatekit {
 
 // Streams the zstd file at zst_path, decompressed, to out_path. Writes a
 // temporary file next to out_path and renames it into place only when the
-// whole stream decoded cleanly, so out_path is never left half-written.
+// whole stream decoded cleanly and was synced to disk, so out_path is never
+// left half-written, even after a power loss. A killed process can leave a
+// `<out_path>.tmp-XXXXXX` sibling behind; callers may delete those.
 // Replaces an existing out_path; leaves zst_path alone. Throws
 // std::runtime_error on unreadable, non-zstd, truncated or malformed input and
 // on write failures. Damaged data in a frame without a checksum can decode to

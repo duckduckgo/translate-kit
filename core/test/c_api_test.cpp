@@ -27,6 +27,9 @@
 #include <iterator>
 #include <string>
 #include <thread>
+
+#include <sys/wait.h>
+#include <unistd.h>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -527,6 +530,50 @@ TEST(CApi, DecompressZstdRejectsBadArgs) {
     EXPECT_EQ(tk_decompress_zstd((dir / "missing.zst").c_str(), (dir / "no" / "out").c_str()),
               TK_ERR_IO);
     EXPECT_EQ(FileCount(dir), 0u);
+}
+
+// Several threads and processes writing the same out_path must not share a
+// temp file: each gets its own exclusive one, and the last rename wins whole.
+TEST(CApi, DecompressZstdSameOutputConcurrently) {
+    const auto dir = ZstdDir("same_out");
+    const std::string payload = Payload();
+    WriteFile(dir / "in.zst", ZstdRaw(payload));
+    const auto in = dir / "in.zst";
+    const auto out = dir / "out";
+
+    constexpr int kProcesses = 4;
+    std::vector<pid_t> children;
+    for (int p = 0; p < kProcesses; ++p) {
+        const pid_t pid = fork();
+        ASSERT_GE(pid, 0);
+        if (pid == 0) _exit(tk_decompress_zstd(in.c_str(), out.c_str()) == TK_OK ? 0 : 1);
+        children.push_back(pid);
+    }
+    std::vector<std::thread> threads;
+    std::vector<tk_status> status(4);
+    for (int t = 0; t < 4; ++t) {
+        threads.emplace_back([&, t] { status[t] = tk_decompress_zstd(in.c_str(), out.c_str()); });
+    }
+    for (auto& t : threads) t.join();
+    for (pid_t pid : children) {
+        int wstatus = 0;
+        ASSERT_EQ(waitpid(pid, &wstatus, 0), pid);
+        EXPECT_TRUE(WIFEXITED(wstatus) && WEXITSTATUS(wstatus) == 0);
+    }
+    for (tk_status s : status) EXPECT_EQ(s, TK_OK);
+    EXPECT_EQ(ReadFile(out), payload);
+    EXPECT_EQ(FileCount(dir), 2u);  // in.zst + out: no temp files left
+}
+
+// A temp file left by a killed process doesn't get in the way.
+TEST(CApi, DecompressZstdIgnoresStaleTempFile) {
+    const auto dir = ZstdDir("stale");
+    WriteFile(dir / "in.zst", kZstdHello);
+    WriteFile(dir / "out.tmp-AAAAAA", "stale partial output");
+    ASSERT_EQ(tk_decompress_zstd((dir / "in.zst").c_str(), (dir / "out").c_str()), TK_OK)
+        << tk_last_error();
+    EXPECT_EQ(ReadFile(dir / "out"), "hello model");
+    EXPECT_EQ(ReadFile(dir / "out.tmp-AAAAAA"), "stale partial output");  // the caller's to sweep
 }
 
 TEST(CApi, DecompressZstdInParallel) {

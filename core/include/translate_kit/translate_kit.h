@@ -157,8 +157,10 @@ TK_EXPORT tk_status tk_translate(tk_model* model,
                                  tk_translation_result* out_result);
 
 /* Decompress the zstd file at `zst_path` to `out_path`, streaming to disk. The
- * output goes to a temporary file next to `out_path` and is renamed into place
- * only once complete, so a failure never leaves a partial `out_path`. Replaces
+ * output goes to a temporary file next to `out_path`, synced to disk, and
+ * renamed into place only once complete, so a failure or power loss never
+ * leaves a partial `out_path`. A killed process can leave a
+ * `<out_path>.tmp-XXXXXX` sibling behind; callers may delete those. Replaces
  * an existing `out_path`; leaves `zst_path` in place. Needs no context. Returns
  * TK_ERR_INVALID_ARG on null/empty paths and TK_ERR_IO on unreadable,
  * non-zstd, truncated or malformed input or a write failure. Damaged data in a

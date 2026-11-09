@@ -172,8 +172,9 @@ zstd-compressed; decompress each file once with `decompressZstd`, see below) plu
 nothing is downloaded — the library only opens the on-disk paths you pass it. See `SPEC-1 §10a`.
 
 `TranslateKit.decompressZstd(zstPath, outPath)` (Kotlin) / `TranslateKit.decompressZstd(at:to:)` (Swift)
-streams one `.zst` to disk. The output only appears once fully decompressed, so a crash or a truncated
-download never leaves a partial model behind. It can't catch every corruption: damaged data in a file
+streams one `.zst` to disk. The output is synced to disk and only appears once fully decompressed, so a
+crash, power loss or truncated download never leaves a partial model behind. A process killed mid-way can
+leave a `<outPath>.tmp-XXXXXX` file next to the output; it is safe to delete. It can't catch every corruption: damaged data in a file
 without a zstd checksum can decode to wrong bytes. Verify each file against a known hash (e.g. a SHA-256
 of the `.zst` before decompressing, or of the output after). The `.zst` is left in place. It is blocking and
 thread-safe, so the model, vocab and shortlist can be decompressed in parallel.
