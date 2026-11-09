@@ -209,6 +209,7 @@ final class TranslateKitTests: XCTestCase {
 
         let results = try model.translate(["Hello World!", "Good morning!"], isHtml: false)
         XCTAssertEqual(results.count, 2)
+        XCTAssertEqual(try model.translate([], isHtml: false), [])
         XCTAssertTrue(results[0].text.contains("Hallo"), "got: \(results[0].text)")
         XCTAssertTrue(results[1].text.contains("Guten"), "got: \(results[1].text)")
     }

@@ -103,7 +103,10 @@ All native calls are **blocking** — call them off the main thread (e.g. a coro
 verdict, and up to three `topLanguages` with their percentage of the text. Only offer translation when
 `isReliable` is true.
 `translate(input, isHtml = true)` preserves inline HTML tags via the engine's alignment-based
-detag-and-project. The library is single-hop per loaded model; non-English↔non-English pairs are pivoted
+detag-and-project. `translate(inputs: List<String>, isHtml)` translates a whole list in one engine call, about
+2× faster than one call per input. A sentence's output can differ slightly from a single call's, because
+the engine's output-vocabulary shortlist is shared across the batch (in testing, usually closer to the
+model's unrestricted output). The library is single-hop per loaded model; non-English↔non-English pairs are pivoted
 through English by the caller.
 
 ## Apple usage (Swift)

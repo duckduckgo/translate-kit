@@ -146,6 +146,22 @@ class TranslateKitInstrumentedTest {
         )
     }
 
+    // Mirrors core/test/c_api_test.cpp's batch case: one engine call for all the
+    // HTML cases. Outputs may differ slightly from single calls (shared
+    // shortlist), so only the structural invariants are checked.
+    @Test
+    fun translateHtml_batchKeepsStructure() {
+        val model = enDeModelOrSkip()
+        val outputs = model.translate(HTML_CASES.map { it.input }, isHtml = true).map { it.text }
+        assertEquals(HTML_CASES.size, outputs.size)
+        val failures = HTML_CASES.zip(outputs).mapNotNull { (case, out) ->
+            val missing = case.mustContain.filterNot { out.contains(it) }
+            if (missing.isEmpty()) null else "input=${case.input}\n  output:  $out\n  missing: $missing"
+        }
+        assertTrue("batch failures:\n" + failures.joinToString("\n"), failures.isEmpty())
+        assertEquals(emptyList<TranslationResult>(), model.translate(emptyList(), isHtml = false))
+    }
+
     private fun enDeModelOrSkip(): TranslationModel {
         sharedModel?.let { return it }
         synchronized(LOCK) {

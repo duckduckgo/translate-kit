@@ -46,6 +46,21 @@ char* dup_cstr(const std::string& s) {
     return out;
 }
 
+// Copies a C++ result into the C struct. Returns false when out of memory.
+bool fill_result(const translatekit::TranslationResult& r, tk_translation_result* out) {
+    out->text = dup_cstr(r.text);
+    if (out->text == nullptr) return false;
+    if (!r.quality_scores.empty()) {
+        const size_t n = r.quality_scores.size();
+        out->quality_scores = static_cast<float*>(std::malloc(n * sizeof(float)));
+        if (out->quality_scores != nullptr) {
+            std::memcpy(out->quality_scores, r.quality_scores.data(), n * sizeof(float));
+            out->quality_len = n;
+        }
+    }
+    return true;
+}
+
 }  // namespace
 
 // Opaque handle definitions.
@@ -190,20 +205,9 @@ tk_status tk_translate(tk_model* model,
     try {
         translatekit::TranslationResult r =
             model->translator.translate(std::string(input), is_html != 0);
-        out_result->text = dup_cstr(r.text);
-        if (out_result->text == nullptr) {
+        if (!fill_result(r, out_result)) {
             set_error("tk_translate: out of memory");
             return TK_ERR_INTERNAL;
-        }
-        if (!r.quality_scores.empty()) {
-            const size_t n = r.quality_scores.size();
-            out_result->quality_scores =
-                static_cast<float*>(std::malloc(n * sizeof(float)));
-            if (out_result->quality_scores != nullptr) {
-                std::memcpy(out_result->quality_scores, r.quality_scores.data(),
-                            n * sizeof(float));
-                out_result->quality_len = n;
-            }
         }
         return TK_OK;
     } catch (const std::exception& e) {
@@ -211,6 +215,55 @@ tk_status tk_translate(tk_model* model,
         return TK_ERR_TRANSLATE;
     } catch (...) {
         set_error("tk_translate: unknown error");
+        return TK_ERR_TRANSLATE;
+    }
+}
+
+tk_status tk_translate_batch(tk_model* model,
+                             const char* const* inputs,
+                             size_t count,
+                             int is_html,
+                             tk_translation_result* out_results) {
+    clear_error();
+    if (count == 0) return TK_OK;
+    if (out_results == nullptr) {
+        set_error("tk_translate_batch: out_results is null");
+        return TK_ERR_INVALID_ARG;
+    }
+    for (size_t i = 0; i < count; ++i) out_results[i] = tk_translation_result{};
+    if (model == nullptr) {
+        set_error("tk_translate_batch: model is null");
+        return TK_ERR_INVALID_ARG;
+    }
+    if (inputs == nullptr) {
+        set_error("tk_translate_batch: inputs is null");
+        return TK_ERR_INVALID_ARG;
+    }
+    std::vector<std::string> sources;
+    sources.reserve(count);
+    for (size_t i = 0; i < count; ++i) {
+        if (inputs[i] == nullptr) {
+            set_error(("tk_translate_batch: inputs[" + std::to_string(i) + "] is null").c_str());
+            return TK_ERR_INVALID_ARG;
+        }
+        sources.emplace_back(inputs[i]);
+    }
+    try {
+        const std::vector<translatekit::TranslationResult> results =
+            model->translator.translate_batch(sources, is_html != 0);
+        for (size_t i = 0; i < count; ++i) {
+            if (!fill_result(results[i], &out_results[i])) {
+                for (size_t j = 0; j <= i; ++j) tk_translation_result_free(&out_results[j]);
+                set_error("tk_translate_batch: out of memory");
+                return TK_ERR_INTERNAL;
+            }
+        }
+        return TK_OK;
+    } catch (const std::exception& e) {
+        set_error(e.what());
+        return TK_ERR_TRANSLATE;
+    } catch (...) {
+        set_error("tk_translate_batch: unknown error");
         return TK_ERR_TRANSLATE;
     }
 }

@@ -41,6 +41,17 @@ void ThrowRuntime(JNIEnv* env, const char* message) {
     if (cls != nullptr) env->ThrowNew(cls, message != nullptr ? message : "translate-kit error");
 }
 
+// Builds a Kotlin TranslationResult from a C result (which the caller frees).
+jobject NewTranslationResult(JNIEnv* env, jclass cls, jmethodID ctor,
+                             const tk_translation_result& result) {
+    jstring text = env->NewStringUTF(result.text != nullptr ? result.text : "");
+    // Phase A: quality scores are not surfaced (always null). The C ABI carries
+    // them (result.quality_scores) for Phase C; build a List<Float> here then.
+    jobject obj = env->NewObject(cls, ctor, text, nullptr);
+    env->DeleteLocalRef(text);
+    return obj;
+}
+
 }  // namespace
 
 extern "C" {
@@ -163,17 +174,50 @@ Java_com_duckduckgo_translatekit_TranslationModel_nativeTranslate(
         return nullptr;
     }
 
-    jstring text = env->NewStringUTF(result.text != nullptr ? result.text : "");
-    // Phase A: quality scores are not surfaced (always null). The C ABI carries
-    // them (result.quality_scores) for Phase C; build a List<Float> here then.
+    jclass cls = env->FindClass("com/duckduckgo/translatekit/TranslationResult");
+    jmethodID ctor = env->GetMethodID(cls, "<init>", "(Ljava/lang/String;Ljava/util/List;)V");
+    jobject obj = NewTranslationResult(env, cls, ctor, result);
     tk_translation_result_free(&result);
+    env->DeleteLocalRef(cls);
+    return obj;
+}
+
+JNIEXPORT jobjectArray JNICALL
+Java_com_duckduckgo_translatekit_TranslationModel_nativeTranslateBatch(
+        JNIEnv* env, jobject, jlong model_ptr, jobjectArray inputs, jboolean is_html) {
+    auto* model = reinterpret_cast<tk_model*>(model_ptr);
+
+    // Own the input strings, then hand the C ABI an array of stable pointers.
+    const jsize count = env->GetArrayLength(inputs);
+    std::vector<std::string> strings;
+    strings.reserve(static_cast<size_t>(count));
+    for (jsize i = 0; i < count; ++i) {
+        auto element = reinterpret_cast<jstring>(env->GetObjectArrayElement(inputs, i));
+        strings.push_back(ToString(env, element));
+        env->DeleteLocalRef(element);
+    }
+    std::vector<const char*> pointers;
+    pointers.reserve(strings.size());
+    for (const std::string& s : strings) pointers.push_back(s.c_str());
+
+    std::vector<tk_translation_result> results(strings.size());
+    if (tk_translate_batch(model, pointers.data(), pointers.size(), is_html ? 1 : 0,
+                           results.data()) != TK_OK) {
+        ThrowRuntime(env, tk_last_error());
+        return nullptr;
+    }
 
     jclass cls = env->FindClass("com/duckduckgo/translatekit/TranslationResult");
     jmethodID ctor = env->GetMethodID(cls, "<init>", "(Ljava/lang/String;Ljava/util/List;)V");
-    jobject obj = env->NewObject(cls, ctor, text, nullptr);
-    env->DeleteLocalRef(text);
+    jobjectArray out = env->NewObjectArray(count, cls, nullptr);
+    for (jsize i = 0; i < count; ++i) {
+        jobject obj = NewTranslationResult(env, cls, ctor, results[i]);
+        env->SetObjectArrayElement(out, i, obj);
+        env->DeleteLocalRef(obj);
+        tk_translation_result_free(&results[i]);
+    }
     env->DeleteLocalRef(cls);
-    return obj;
+    return out;
 }
 
 JNIEXPORT void JNICALL

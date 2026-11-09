@@ -177,7 +177,38 @@ TEST(CApi, TranslateEchoesInputInStub) {
     tk_model_close(model);
     tk_shutdown(ctx);
 }
+
+TEST(CApi, TranslateBatchEchoesInputsInStub) {
+    tk_context* ctx = MakeContext();
+    tk_model* model = LoadStubModel(ctx);
+
+    const char* inputs[] = {"uno", "<b>dos</b>", ""};
+    tk_translation_result r[3] = {};
+    ASSERT_EQ(tk_translate_batch(model, inputs, 3, /*is_html=*/1, r), TK_OK) << tk_last_error();
+    for (int i = 0; i < 3; ++i) {
+        ASSERT_NE(r[i].text, nullptr);
+        EXPECT_STREQ(r[i].text, inputs[i]);  // stub echoes, in order
+        tk_translation_result_free(&r[i]);
+    }
+
+    tk_model_close(model);
+    tk_shutdown(ctx);
+}
 #endif  // !TRANSLATEKIT_WITH_ENGINE
+
+TEST(CApi, TranslateBatchRejectsBadArgs) {
+    tk_model* model = reinterpret_cast<tk_model*>(1);  // never dereferenced
+    const char* inputs[] = {"a", nullptr};
+    tk_translation_result r[2];
+    r[0].text = reinterpret_cast<char*>(1);  // must be zeroed on failure
+    EXPECT_EQ(tk_translate_batch(model, inputs, 2, 0, r), TK_ERR_INVALID_ARG);
+    EXPECT_NE(std::string(tk_last_error()).find("inputs[1]"), std::string::npos);
+    EXPECT_EQ(r[0].text, nullptr);
+    EXPECT_EQ(tk_translate_batch(nullptr, inputs, 1, 0, r), TK_ERR_INVALID_ARG);
+    EXPECT_EQ(tk_translate_batch(model, nullptr, 1, 0, r), TK_ERR_INVALID_ARG);
+    EXPECT_EQ(tk_translate_batch(model, inputs, 1, 0, nullptr), TK_ERR_INVALID_ARG);
+    EXPECT_EQ(tk_translate_batch(model, nullptr, 0, 0, nullptr), TK_OK);  // empty batch
+}
 
 #ifdef TRANSLATEKIT_WITH_ENGINE
 // Golden translation against a real tiny en->de model. Provide the extracted
@@ -271,6 +302,26 @@ TEST(CApi, TranslateRealModelEnDe) {
             }
         }
         tk_translation_result_free(&h);
+    }
+
+    // (c) The same HTML cases in one batch. Outputs may differ slightly from the
+    // one-at-a-time calls (shared shortlist), but the structural invariants hold.
+    std::vector<const char*> batch_inputs;
+    for (const HtmlCase& c : html_cases) batch_inputs.push_back(c.input);
+    std::vector<tk_translation_result> batch(batch_inputs.size());
+    ASSERT_EQ(tk_translate_batch(m, batch_inputs.data(), batch_inputs.size(), /*is_html=*/1,
+                                 batch.data()),
+              TK_OK)
+        << tk_last_error();
+    for (size_t i = 0; i < batch.size(); ++i) {
+        ASSERT_NE(batch[i].text, nullptr) << "input: " << batch_inputs[i];
+        const std::string html(batch[i].text);
+        for (const char* needle : html_cases[i].must_contain) {
+            EXPECT_NE(html.find(needle), std::string::npos)
+                << "input: " << batch_inputs[i] << "\n  output: " << html
+                << "\n  missing: " << needle;
+        }
+        tk_translation_result_free(&batch[i]);
     }
 
     tk_model_close(m);

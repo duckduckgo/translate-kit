@@ -51,6 +51,12 @@ public:
     // Translate one input. When `is_html`, inline tags are preserved/re-aligned.
     TranslationResult translate(const std::string& input, bool is_html) const;
 
+    // Translate all inputs in one engine call, which is faster than one call
+    // each. A sentence's output can differ from translate()'s: the engine's
+    // output-vocabulary shortlist is shared across the batch.
+    std::vector<TranslationResult> translate_batch(const std::vector<std::string>& inputs,
+                                                   bool is_html) const;
+
 private:
     struct Impl;
     Impl* impl_;

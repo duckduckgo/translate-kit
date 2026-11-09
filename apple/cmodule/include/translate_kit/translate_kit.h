@@ -167,6 +167,18 @@ TK_EXPORT tk_status tk_translate(tk_model* model,
  * from several threads. */
 TK_EXPORT tk_status tk_decompress_zstd(const char* zst_path, const char* out_path);
 
+/* Translate `count` inputs in one engine call: all plain text, or all HTML
+ * fragments when is_html != 0. Faster than calling tk_translate per input. A
+ * sentence's output can differ slightly from tk_translate's, because the
+ * engine's output-vocabulary shortlist is shared across the batch. On success
+ * fills out_results[0..count); free each with tk_translation_result_free. On
+ * failure every result is left zeroed. Blocking. */
+TK_EXPORT tk_status tk_translate_batch(tk_model* model,
+                                       const char* const* inputs,
+                                       size_t count,
+                                       int is_html,
+                                       tk_translation_result* out_results);
+
 /* Release the contents of a translation result (its text + quality buffer).
  * Safe to call with a zero-initialized struct. Does not free `result` itself. */
 TK_EXPORT void tk_translation_result_free(tk_translation_result* result);
