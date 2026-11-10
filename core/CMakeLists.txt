@@ -105,13 +105,17 @@ set_target_properties(zstd_decompress PROPERTIES POSITION_INDEPENDENT_CODE ON)
 add_library(translatekit_core STATIC
         src/c_api.cpp
         src/decompress.cpp
+        src/html_tree.cpp
         src/language_detector.cpp
         src/translator.cpp)
 
-# Public: the C ABI header. Private: internal C++ headers under src/.
+# Public: the C ABI header. Private: internal C++ headers under src/, and the
+# engine's src/ for Bergamot's HTML scanner (translator/xh_scanner.h), which
+# html_tree.cpp uses even in stub builds.
+set(ENGINE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/translations/inference)
 target_include_directories(translatekit_core
         PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
-        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${ENGINE_DIR}/src)
 
 target_link_libraries(translatekit_core PRIVATE cld2 zstd_decompress)
 
@@ -138,9 +142,13 @@ target_compile_definitions(translatekit_core PRIVATE TK_VERSION="${TRANSLATEKIT_
 #   scripts/apply-engine-patches.sh
 if(TRANSLATEKIT_WITH_ENGINE)
     include(BergamotEngine)
-    set(ENGINE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/translations/inference)
     translatekit_add_engine(${ENGINE_DIR})
     translatekit_link_engine(translatekit_core ${ENGINE_DIR})
+else()
+    # The engine library already contains the scanner; compile it ourselves only
+    # without the engine. Needs just the third_party/translations checkout, none
+    # of its nested submodules.
+    target_sources(translatekit_core PRIVATE ${ENGINE_DIR}/src/translator/xh_scanner.cpp)
 endif()
 
 # Position-independent so it can be linked into a shared object (the .so / JNI lib).

@@ -197,6 +197,48 @@ TEST(CApi, TranslateBatchEchoesInputsInStub) {
     tk_model_close(model);
     tk_shutdown(ctx);
 }
+
+// The stub echoes, so html_as_json_tree converts the input itself: the whole
+// tk_translate_ex flag path runs without a model.
+TEST(CApi, TranslateExJsonTreeInStub) {
+    tk_context* ctx = MakeContext();
+    tk_model* model = LoadStubModel(ctx);
+    tk_translate_options options = {};
+    options.is_html = 1;
+    options.html_as_json_tree = 1;
+
+    tk_translation_result r = {};
+    ASSERT_EQ(tk_translate_ex(model, "Le <b data-t=\"0\">renard</b>", &options, &r), TK_OK)
+        << tk_last_error();
+    ASSERT_NE(r.text, nullptr);
+    EXPECT_STREQ(r.text,
+                 R"([{"text":"Le "},{"tag":"b","attrs":{"data-t":"0"},"children":[{"text":"renard"}]}])");
+    tk_translation_result_free(&r);
+
+    // Malformed output is the JSON null, never the HTML string.
+    ASSERT_EQ(tk_translate_ex(model, "<b>unclosed", &options, &r), TK_OK) << tk_last_error();
+    EXPECT_STREQ(r.text, "null");
+    tk_translation_result_free(&r);
+
+    // Without the flag, tk_translate_ex behaves like tk_translate.
+    options.html_as_json_tree = 0;
+    ASSERT_EQ(tk_translate_ex(model, "<b>unclosed", &options, &r), TK_OK) << tk_last_error();
+    EXPECT_STREQ(r.text, "<b>unclosed");
+    tk_translation_result_free(&r);
+
+    // The batch applies the same options to every input.
+    const char* inputs[] = {"Le <b data-t=\"0\">renard</b>", "<b>unclosed"};
+    tk_translation_result b[2] = {};
+    options.html_as_json_tree = 1;
+    ASSERT_EQ(tk_translate_batch_ex(model, inputs, 2, &options, b), TK_OK) << tk_last_error();
+    EXPECT_STREQ(b[0].text,
+                 R"([{"text":"Le "},{"tag":"b","attrs":{"data-t":"0"},"children":[{"text":"renard"}]}])");
+    EXPECT_STREQ(b[1].text, "null");
+    for (tk_translation_result& x : b) tk_translation_result_free(&x);
+
+    tk_model_close(model);
+    tk_shutdown(ctx);
+}
 #endif  // !TRANSLATEKIT_WITH_ENGINE
 
 TEST(CApi, TranslateBatchRejectsBadArgs) {
@@ -211,6 +253,27 @@ TEST(CApi, TranslateBatchRejectsBadArgs) {
     EXPECT_EQ(tk_translate_batch(model, nullptr, 1, 0, r), TK_ERR_INVALID_ARG);
     EXPECT_EQ(tk_translate_batch(model, inputs, 1, 0, nullptr), TK_ERR_INVALID_ARG);
     EXPECT_EQ(tk_translate_batch(model, nullptr, 0, 0, nullptr), TK_OK);  // empty batch
+}
+
+TEST(CApi, TranslateExRejectsBadOptions) {
+    tk_translation_result r = {};
+
+    // Argument checks run before the model is touched, so a dummy handle is
+    // enough and this runs in engine builds too.
+    tk_translate_options json_without_html = {};
+    json_without_html.html_as_json_tree = 1;
+    EXPECT_EQ(tk_translate_ex(reinterpret_cast<tk_model*>(1), "x", &json_without_html, &r),
+              TK_ERR_INVALID_ARG);
+    EXPECT_EQ(r.text, nullptr);
+    EXPECT_EQ(tk_translate_ex(reinterpret_cast<tk_model*>(1), "x", nullptr, &r), TK_ERR_INVALID_ARG);
+    EXPECT_EQ(tk_translate_ex(nullptr, "x", &json_without_html, &r), TK_ERR_INVALID_ARG);
+
+    const char* inputs[] = {"x"};
+    tk_translation_result b[1] = {};
+    EXPECT_EQ(tk_translate_batch_ex(reinterpret_cast<tk_model*>(1), inputs, 1, &json_without_html, b),
+              TK_ERR_INVALID_ARG);
+    EXPECT_EQ(tk_translate_batch_ex(reinterpret_cast<tk_model*>(1), inputs, 1, nullptr, b),
+              TK_ERR_INVALID_ARG);
 }
 
 #ifdef TRANSLATEKIT_WITH_ENGINE
@@ -326,6 +389,16 @@ TEST(CApi, TranslateRealModelEnDe) {
         }
         tk_translation_result_free(&batch[i]);
     }
+
+    // (c) the same canonical case as a JSON tree.
+    tk_translate_options options = {};
+    options.is_html = 1;
+    options.html_as_json_tree = 1;
+    tk_translation_result j = {};
+    ASSERT_EQ(tk_translate_ex(m, "<b>Hello World!</b>", &options, &j), TK_OK) << tk_last_error();
+    ASSERT_NE(j.text, nullptr);
+    EXPECT_STREQ(j.text, R"([{"tag":"b","attrs":{},"children":[{"text":"Hallo Welt!"}]}])");
+    tk_translation_result_free(&j);
 
     tk_model_close(m);
     tk_shutdown(ctx);

@@ -162,6 +162,21 @@ class TranslateKitInstrumentedTest {
         assertEquals(emptyList<TranslationResult>(), model.translate(emptyList(), isHtml = false))
     }
 
+    // Mirrors core/test/c_api_test.cpp's JSON-tree case.
+    @Test
+    fun translateHtml_asJsonTree() {
+        val model = enDeModelOrSkip()
+        val out = model.translate("<b>Hello World!</b>", isHtml = true, htmlAsJsonTree = true).text
+        assertEquals("""[{"tag":"b","attrs":{},"children":[{"text":"Hallo Welt!"}]}]""", out)
+
+        val batch = model.translate(listOf("<b>Hello World!</b>"), isHtml = true, htmlAsJsonTree = true)
+        assertEquals(listOf(out), batch.map { it.text })
+
+        assertThrows(RuntimeException::class.java) {
+            model.translate("x", isHtml = false, htmlAsJsonTree = true)
+        }
+    }
+
     private fun enDeModelOrSkip(): TranslationModel {
         sharedModel?.let { return it }
         synchronized(LOCK) {

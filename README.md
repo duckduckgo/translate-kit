@@ -103,7 +103,9 @@ All native calls are **blocking** — call them off the main thread (e.g. a coro
 verdict, and up to three `topLanguages` with their percentage of the text. Only offer translation when
 `isReliable` is true.
 `translate(input, isHtml = true)` preserves inline HTML tags via the engine's alignment-based
-detag-and-project. `translate(inputs: List<String>, isHtml)` translates a whole list in one engine call, about
+detag-and-project. Add `htmlAsJsonTree = true` to get the translated HTML as a JSON tree of
+`{"text"}` / `{"tag", "attrs", "children"}` nodes instead (the JSON `null` if the output is malformed),
+so a page script never has to parse HTML. `translate(inputs: List<String>, isHtml)` translates a whole list in one engine call, about
 2× faster than one call per input. A sentence's output can differ slightly from a single call's, because
 the engine's output-vocabulary shortlist is shared across the batch (in testing, usually closer to the
 model's unrestricted output). The library is single-hop per loaded model; non-English↔non-English pairs are pivoted
@@ -133,7 +135,7 @@ model.close()
 ```
 
 The Swift API mirrors the Android facade 1:1: `TranslateKit` (`init()` / `detectLanguage(_:)` /
-`loadModel(_:)` / `unloadModel(_:)`, plus the static `decompressZstd(at:to:)`) and `TranslationModel` (`translate(_:isHtml:)`, a batch overload,
+`loadModel(_:)` / `unloadModel(_:)`, plus the static `decompressZstd(at:to:)`) and `TranslationModel` (`translate(_:isHtml:htmlAsJSONTree:)`, a batch overload,
 and `close()` — also wired to `deinit`). Language detection (CLD2) needs no model file. All calls are
 **blocking** — invoke them off the main thread (e.g. a background `Task`/`DispatchQueue`); a `TranslateKit`
 and the `TranslationModel`s loaded from it are **not** thread-safe, so serialize access. Deployment
