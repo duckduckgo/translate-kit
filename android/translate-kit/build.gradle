@@ -26,7 +26,7 @@ plugins {
 def versionName = project.findProperty('VERSION_NAME') ?: file("${rootDir}/../VERSION").text.trim()
 
 mavenPublishing {
-    publishToMavenCentral()
+    publishToMavenCentral(true)  // automaticRelease: no manual Publish step in the Central Portal
     signAllPublications()
     coordinates("com.duckduckgo.translatekit", "translate-kit-android", versionName)
 
