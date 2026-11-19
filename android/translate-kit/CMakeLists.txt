@@ -38,10 +38,16 @@ target_link_libraries(translate-kit
 target_compile_options(translate-kit
         PRIVATE
         "-fdebug-prefix-map=${CMAKE_SOURCE_DIR}=."
-        "-fdebug-prefix-map=${CMAKE_BINARY_DIR}=.")
+        "-fdebug-prefix-map=${CMAKE_BINARY_DIR}=."
+        "-fvisibility=hidden")
 
+# Export only the JNI entry points (JNIEXPORT), so the linker can drop engine,
+# CLD2 and static libc++ code the JNI shim never reaches.
 target_link_options(translate-kit
         PRIVATE
+        "-Wl,--exclude-libs,ALL"
+        "-Wl,--gc-sections"
+        "-Wl,--icf=all"
         "-Wl,--build-id=none"
         "-Wl,-z,common-page-size=16384"
         "-Wl,-z,max-page-size=16384")
