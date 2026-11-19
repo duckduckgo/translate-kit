@@ -62,6 +62,12 @@ states, **these files are read by the library at runtime and are not compiled
 into it.** `translate-kit` runs ssplit in `paragraph` mode and bundles no runtime
 prefix data, so no LGPL-2.1 material is distributed in the published artifact.
 
+## Translation models — downloaded at runtime, not in this repository
+
+| Component | Role | License | Copyright holder(s) | Source |
+|-----------|------|---------|---------------------|--------|
+| Mozilla Translations models | Language-pair models used with the engine | MPL-2.0 | Mozilla Corporation and contributors | https://github.com/mozilla/translations |
+
 ## Test data — not distributed in the published artifact
 
 The following is used only by the test suite. It is `.gitignore`d (fetched, not
@@ -81,9 +87,9 @@ full Apache License 2.0 text is in [`LICENSE`](LICENSE).
 
 ### MPL-2.0
 
-Applies to the Bergamot inference layer. MPL-2.0 is file-level copyleft: the
-covered source files remain under MPL-2.0 and may be combined with this project's
-Apache-2.0 code. The full text is in
+Applies to the Bergamot inference layer and the translation models. MPL-2.0 is
+file-level copyleft: the covered source files remain under MPL-2.0 and may be
+combined with this project's Apache-2.0 code. The full text is in
 [`third_party/translations/LICENSE`](third_party/translations/LICENSE).
 
 ### MIT License
