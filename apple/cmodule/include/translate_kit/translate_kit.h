@@ -156,7 +156,8 @@ TK_EXPORT tk_status tk_load_model(tk_context* ctx,
 
 /* Translate `input` (plain text, or an HTML fragment when is_html != 0). When
  * is_html is set, inline tags are preserved/re-aligned by the engine
- * (detag-and-project). On success fills *out_result; free it with
+ * (detag-and-project). Malformed input HTML (mismatched or unclosed tags)
+ * returns TK_ERR_TRANSLATE. On success fills *out_result; free it with
  * tk_translation_result_free. Blocking. */
 TK_EXPORT tk_status tk_translate(tk_model* model,
                                  const char* input,
@@ -193,8 +194,9 @@ TK_EXPORT tk_status tk_decompress_zstd(const char* zst_path, const char* out_pat
  * fragments when is_html != 0. Faster than calling tk_translate per input. A
  * sentence's output can differ slightly from tk_translate's, because the
  * engine's output-vocabulary shortlist is shared across the batch. On success
- * fills out_results[0..count); free each with tk_translation_result_free. On
- * failure every result is left zeroed. Blocking. */
+ * fills out_results[0..count); free each with tk_translation_result_free. One
+ * failing input (e.g. malformed HTML) fails the whole call, and on failure every
+ * result is left zeroed. Blocking. */
 TK_EXPORT tk_status tk_translate_batch(tk_model* model,
                                        const char* const* inputs,
                                        size_t count,

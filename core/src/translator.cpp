@@ -27,6 +27,7 @@
 #include <sstream>
 #include <stdexcept>
 
+#include "common/logging.h"
 #include "common/options.h"
 #include "translator/parser.h"
 #include "translator/response.h"
@@ -119,7 +120,12 @@ struct Translator::Impl {
               static_cast<size_t>(spec.num_workers > 0 ? spec.num_workers : 1))) {}
 };
 
-Translator::Translator(const ModelSpec& spec) : impl_(new Impl(spec)) {}
+Translator::Translator(const ModelSpec& spec) : impl_(nullptr) {
+    // marian's ABORT (e.g. Bergamot's HTML parser on mismatched tags) calls
+    // std::abort() by default; make it throw so the C API reports an error.
+    marian::setThrowExceptionOnAbort(true);
+    impl_ = new Impl(spec);
+}
 
 Translator::~Translator() {
     delete impl_;

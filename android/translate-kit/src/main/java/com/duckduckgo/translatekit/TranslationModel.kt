@@ -32,7 +32,8 @@ class TranslationModel internal constructor(nativePointer: Long) {
     /**
      * Translate plain text, or an HTML fragment when [isHtml] is `true`. With
      * [isHtml], inline tags are preserved and re-aligned by the engine
-     * (detag-and-project). Blocking.
+     * (detag-and-project). Malformed input HTML (mismatched or unclosed tags)
+     * throws. Blocking.
      *
      * With [htmlAsJsonTree] (requires [isHtml]), the result's text is the
      * translated HTML as a JSON array of `{"text": …}` and
@@ -50,7 +51,8 @@ class TranslationModel internal constructor(nativePointer: Long) {
      * Translate all [inputs] in one engine call, which is faster than one call
      * each. A sentence's output can differ slightly from the single-input
      * overload's, because the engine's output-vocabulary shortlist is shared
-     * across the batch. Throws if any input fails, returning no results.
+     * across the batch. Throws if any input fails, returning no results: one
+     * malformed HTML input fails the whole call, so retry the others or skip it.
      * [htmlAsJsonTree] applies to every input as in the single-input overload.
      * Blocking.
      */

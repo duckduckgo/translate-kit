@@ -177,6 +177,24 @@ class TranslateKitInstrumentedTest {
         }
     }
 
+    // Mirrors core/test/c_api_test.cpp's malformed-HTML case: an error, never a crash.
+    @Test
+    fun translateHtml_malformedThrows() {
+        val model = enDeModelOrSkip()
+        for (input in listOf("<b>unclosed <i>x</b>", "<b>unclosed")) {
+            assertThrows(input, RuntimeException::class.java) {
+                model.translate(input, isHtml = true, htmlAsJsonTree = true)
+            }
+        }
+        assertThrows(RuntimeException::class.java) {
+            model.translate(listOf("<b>unclosed <i>x</b>", "<div"), isHtml = true, htmlAsJsonTree = true)
+        }
+
+        // The model still works after the failures.
+        val out = model.translate("<b>Hello World!</b>", isHtml = true, htmlAsJsonTree = true).text
+        assertEquals("""[{"tag":"b","attrs":{},"children":[{"text":"Hallo Welt!"}]}]""", out)
+    }
+
     private fun enDeModelOrSkip(): TranslationModel {
         sharedModel?.let { return it }
         synchronized(LOCK) {
