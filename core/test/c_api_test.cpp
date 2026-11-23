@@ -459,6 +459,66 @@ TEST(CApi, LoadMultipleModelsInOneProcess) {
     tk_model_close(m2);
     tk_shutdown(ctx);
 }
+
+// Malformed HTML from web pages must fail the call, never abort the process.
+// Bergamot's HTML parser ABORTs on tag mismatches, which calls std::abort()
+// unless marian is set to throw instead.
+TEST(CApi, TranslateMalformedHtmlFailsWithoutAborting) {
+    const char* dir = std::getenv("TK_TEST_MODEL_DIR");
+    if (dir == nullptr || dir[0] == '\0') {
+        GTEST_SKIP() << "set TK_TEST_MODEL_DIR to the ende.student.tiny11 directory";
+    }
+    const std::string d(dir);
+    const std::string model = d + "/model.intgemm.alphas.bin";
+    const std::string vocab = d + "/vocab.deen.spm";
+    const std::string lex = d + "/lex.s2t.bin";
+    const std::string config = d + "/config.intgemm8bitalpha.yml";
+    const char* vocabs[] = {vocab.c_str()};
+
+    tk_context* ctx = MakeContext();
+    tk_model_spec spec = {};
+    spec.source_lang = "en";
+    spec.target_lang = "de";
+    spec.model_path = model.c_str();
+    spec.vocab_paths = vocabs;
+    spec.vocab_count = 1;
+    spec.shortlist_path = lex.c_str();
+    spec.config_path = config.c_str();
+    spec.num_workers = 1;
+
+    tk_model* m = nullptr;
+    ASSERT_EQ(tk_load_model(ctx, &spec, &m), TK_OK) << tk_last_error();
+
+    tk_translate_options options = {};
+    options.is_html = 1;
+    options.html_as_json_tree = 1;
+
+    // "<b>unclosed <i>x</b>" closes <b> while <i> is open; "<b>unclosed" never
+    // closes <b>. "<div" is tolerated by the parser and translates.
+    for (const char* input : {"<b>unclosed <i>x</b>", "<b>unclosed"}) {
+        tk_translation_result r = {};
+        EXPECT_EQ(tk_translate_ex(m, input, &options, &r), TK_ERR_TRANSLATE) << "input: " << input;
+        EXPECT_NE(std::string(tk_last_error()), "") << "input: " << input;
+        EXPECT_EQ(r.text, nullptr) << "input: " << input;
+    }
+
+    // One bad input fails the whole batch and leaves every result zeroed.
+    const char* inputs[] = {"<b>unclosed <i>x</b>", "<div"};
+    tk_translation_result batch[2] = {};
+    EXPECT_EQ(tk_translate_batch_ex(m, inputs, 2, &options, batch), TK_ERR_TRANSLATE);
+    EXPECT_NE(std::string(tk_last_error()), "");
+    EXPECT_EQ(batch[0].text, nullptr);
+    EXPECT_EQ(batch[1].text, nullptr);
+
+    // The model still works after the failures.
+    tk_translation_result ok = {};
+    ASSERT_EQ(tk_translate_ex(m, "<b>Hello World!</b>", &options, &ok), TK_OK) << tk_last_error();
+    EXPECT_STREQ(ok.text, R"([{"tag":"b","attrs":{},"children":[{"text":"Hallo Welt!"}]}])");
+    tk_translation_result_free(&ok);
+
+    tk_model_close(m);
+    tk_shutdown(ctx);
+}
 #endif  // TRANSLATEKIT_WITH_ENGINE
 
 TEST(CApi, LoadModelRejectsMissingModelPath) {

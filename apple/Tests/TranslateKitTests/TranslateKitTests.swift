@@ -221,6 +221,31 @@ final class TranslateKitTests: XCTestCase {
         }
     }
 
+    // Mirrors c_api_test.cpp's malformed-HTML case: an error, never a crash.
+    func testTranslateMalformedHtmlThrows() throws {
+        let dir = try requireModelDirectory()
+        let kit = try TranslateKit()
+        let model = try kit.loadModel(enDeSpec(dir))
+        defer { model.close() }
+
+        for input in ["<b>unclosed <i>x</b>", "<b>unclosed"] {
+            XCTAssertThrowsError(try model.translate(input, isHtml: true, htmlAsJSONTree: true)) { error in
+                guard case TranslateKitError.translation = error else {
+                    return XCTFail("expected .translation for \(input), got \(error)")
+                }
+            }
+        }
+        XCTAssertThrowsError(try model.translate(["<b>unclosed <i>x</b>", "<div"], isHtml: true, htmlAsJSONTree: true)) { error in
+            guard case TranslateKitError.translation = error else {
+                return XCTFail("expected .translation, got \(error)")
+            }
+        }
+
+        // The model still works after the failures.
+        let result = try model.translate("<b>Hello World!</b>", isHtml: true, htmlAsJSONTree: true)
+        XCTAssertEqual(result.text, #"[{"tag":"b","attrs":{},"children":[{"text":"Hallo Welt!"}]}]"#)
+    }
+
     func testBatchTranslate() throws {
         let dir = try requireModelDirectory()
         let kit = try TranslateKit()
